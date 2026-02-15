@@ -941,7 +941,7 @@ function scrollToSectionId(id, el) {
   };
 
   el.innerHTML = html + buildTocHtml(d.contents || []);
-}
+
 
 let viewSettings = { terms: true, highlights: true };
 
