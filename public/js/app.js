@@ -849,17 +849,77 @@ function renderLawSubItems(subs) {
 // 💡 [수정] 좌측 계층형 목차 생성 (항 표시 로직 제거)
 function renderLeftPanel(type, d) {
   const el = document.getElementById('panelLeft');
+  
   if (type !== 'law') {
-    // 판례(case) 목차 로직
-    el.innerHTML = `
+    // 1. 사건번호 기반 재판 유형 분석 (아까 만든 로직)
+    const config = getCaseConfig(d.caseNum || ""); 
+    
+    let html = `
       <div class="pst">정보</div>
+      <div class="case-type-badge ${config.class}">${config.name}</div>
+      <div class="toc-info"><span class="ml">사건</span>${d.caseNum || ''}</div>
       <div class="toc-info"><span class="ml">법원</span>${d.court || ''}</div>
       <div class="toc-info"><span class="ml">선고일</span>${formatDate(d.date)}</div>
+      
+      <div class="tdivider"></div>
+      <div class="pst">관계인</div>`;
+      
+    // 2. 재판 종류별 당사자 라벨 동적 생성
+    config.labels.forEach(label => {
+      html += `<div class="toc-info"><span class="ml">${label}</span>데이터 필요</div>`;
+    });
+
+    html += `
       <div class="tdivider"></div>
       <div class="pst">섹션</div>
-      <div class="toc active" onclick="scrollToSection('판례 전문',this)">판례 전문</div>`;
+      <div class="toc active" onclick="scrollToId('case-top', this)">판례 개요</div>`;
+
+    // 3. 본문에서 【 】 패턴을 찾아 섹션 목차 자동 생성
+    if (d.fullText) {
+      const sections = d.fullText.match(/【(.*?)】/g);
+      if (sections) {
+        sections.forEach((title, idx) => {
+          const cleanTitle = title.replace(/[【】]/g, '');
+          // 본문 렌더링 시 id="section-${idx}"가 부여되어 있어야 함
+          html += `<div class="toc toc-case-section" onclick="scrollToSectionId('section-${idx}', this)">${cleanTitle}</div>`;
+        });
+      }
+    }
+
+    el.innerHTML = html;
     return;
   }
+
+  // --- 기존 법령(law) 로직 (그대로 유지) ---
+  let html = `<div class="pst">법령 목차</div>`;
+  const buildTocHtml = (nodes) => {
+    let res = "";
+    nodes.forEach(node => {
+      if (node.type === 'part' || node.type === 'chapter' || node.type === 'section') {
+        const cls = `toc-${node.type}`;
+        res += `<div class="toc ${cls}">${node.title}</div>`;
+        if (node.children) res += buildTocHtml(node.children);
+      } 
+      else if (node.type === 'article') {
+        const id = `art-${node.num}`;
+        res += `<div class="toc toc-art" id="toc-${id}" onclick="scrollToArt('${id}', this)">제${node.num}조 ${node.title || ''}</div>`;
+      }
+    });
+    return res;
+  };
+  el.innerHTML = html + buildTocHtml(d.contents || []);
+}
+
+// 헬퍼: 이동 시 active 클래스 관리
+function scrollToSectionId(id, el) {
+  const target = document.getElementById(id);
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth' });
+    // 모든 toc에서 active 제거 후 클릭한 것에 추가
+    document.querySelectorAll('.toc').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+  }
+}
 
   let html = `<div class="pst">법령 목차</div>`;
   
@@ -930,3 +990,49 @@ window.showTab = (tabName) => {
   }
 };
 
+// [두뇌 역할] 사건번호를 보고 재판 유형을 판단함
+function getCaseConfig(caseNum) {
+    if (caseNum.includes('헌')) return { name: '헌법재판', class: 'const', labels: ['청구인', '이해관계인'] };
+    if (/[푸로오]/.test(caseNum)) return { name: '소년보호', class: 'juvenile', labels: ['소년', '보호자'] };
+    if (/[드르느]/.test(caseNum)) return { name: '가사재판', class: 'family', labels: ['원고/청구인', '피고/상대방'] };
+    
+    const code = caseNum.replace(/[0-9]/g, '').trim();
+    const map = {
+        '도': { name: '형사재판', class: 'criminal', labels: ['피고인', '검사'] },
+        '나': { name: '민사재판', class: 'civil', labels: ['원고', '피고'] },
+        '다': { name: '민사재판', class: 'civil', labels: ['원고', '피고'] },
+        '두': { name: '행정재판', class: 'admin', labels: ['원고', '피고(행정청)'] }
+    };
+    return map[code] || { name: '일반재판', class: 'default', labels: ['당사자', '상대방'] };
+}
+
+// [출력 역할] 사이드바 목록을 실제로 그려줌
+function updateSidebar(caseData) {
+    const tocList = document.getElementById('tocList'); // HTML에 있는 ID 확인!
+    const config = getCaseConfig(caseData.caseNum);
+    
+    let html = '';
+    // 1. 당사자 라벨 (동적)
+    html += `<li class="toc-group">${config.name} 정보</li>`;
+    config.labels.forEach(label => {
+        html += `<li class="toc-item static">${label}</li>`;
+    });
+
+    // 2. 본문 목차 파싱 (【 】 추출)
+    html += `<li class="toc-group">목차</li>`;
+    const matches = caseData.fullText.match(/【(.*?)】/g);
+    if (matches) {
+        matches.forEach((match, idx) => {
+            const title = match.replace(/[【】]/g, '');
+            html += `<li class="toc-item" onclick="document.getElementById('section-${idx}').scrollIntoView({behavior:'smooth'})">${title}</li>`;
+        });
+    }
+    tocList.innerHTML = html;
+}
+
+// 본문 렌더링 예시
+let idx = 0;
+const formattedFullText = caseData.fullText.replace(/【(.*?)】/g, (match) => {
+    return `<h3 id="section-${idx++}" class="content-header">${match}</h3>`;
+});
+document.getElementById('caseContent').innerHTML = formattedFullText.replace(/\n/g, '<br>');
