@@ -1,1038 +1,1447 @@
 // public/js/app.js
 import * as API from './api.js';
 
-// ════════════════════════════
-// 상태
-// ════════════════════════════
-let termDB    = {};
-// 테스트용 데이터 직접 주입
-termDB = {
-  "불법행위": { hanja: "不法行爲", def: "고의 또는 과실로 타인에게 손해를 가하는 위법행위입니다.", law: "민법 제750조" },
-  "부당이득": { hanja: "不當利得", def: "법률상 원인 없이 타인의 재산으로 이익을 얻는 것입니다.", law: "민법 제741조" },
-  "신의성실": { hanja: "信義誠實", def: "권리의 행사와 의무의 이행은 신의에 좇아 성실히 하여야 한다는 원칙입니다.", law: "민법 제2조" }
+// ════════════════════════════════════════════════════════════════
+// 전역 상태 관리
+// ════════════════════════════════════════════════════════════════
+const state = {
+  termDB: {},
+  homeType: 'all',
+  inlineSearch: {
+    matches: [],
+    currentIndex: 0,
+    lastQuery: ''
+  },
+  currentDetail: {
+    type: null,
+    id: null
+  },
+  viewSettings: {
+    terms: true,
+    highlights: true
+  }
 };
-let homeType  = 'all';
-let iMatches  = [], iIdx = 0, iLastQ = '';
-let currentDetailType = null;
-let currentDetailId   = null;
 
-// ════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // 초기화
-// ════════════════════════════
-// ════════════════════════════
-// 초기화 (수정본)
-// ════════════════════════════
-document.addEventListener('DOMContentLoaded', async () => { // async 추가
-  const savedTheme = localStorage.getItem('lexvis-theme') || 'dark';
-  
-  if (!localStorage.getItem('lexvis-theme')) {
-    localStorage.setItem('lexvis-theme', 'dark');
-  }
-
-  setMode(savedTheme);
-
-  // ★ 추가: 용어 데이터 로드
-  try {
-    // API.js에 용어 목록을 가져오는 함수가 있다고 가정합니다.
-    const data = await API.getTerms(); 
-    if (data) {
-      termDB = data; 
-      console.log("✔ 용어 데이터 로드 완료:", Object.keys(termDB).length, "개");
-    }
-  } catch (e) {
-    console.error("✘ 용어 로드 실패:", e);
-    // 서버가 없다면 테스트용 데이터라도 넣어서 작동 확인 가능
-    // termDB = { "불법행위": { hanja: "不法行爲", def: "고의/과실 손해행위", law: "민법" } };
-  }
+// ════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  initializeTheme();
+  await loadTermDatabase();
+  displayInitialSamples();
 });
-// ════════════════════════════
-// 테마
-// ════════════════════════════
-window.toggleTheme = () => document.body.classList.toggle('light-mode');
 
-// ════════════════════════════
-// 페이지 전환
-// ════════════════════════════
-function showOnly(id) {
-  ['home', 'subpage', 'detail'].forEach(p => {
-    const el = document.getElementById(p);
-    el.classList.remove('active');
-    el.style.display = 'none';
-  });
-  const el = document.getElementById(id);
-  el.classList.add('active');
-  el.style.display = id === 'detail' ? 'flex' : 'block';
+function initializeTheme() {
+  const savedTheme = localStorage.getItem('lexvis-theme') || 'dark';
+  setMode(savedTheme);
 }
 
-window.goHome = () => showOnly('home');
+async function loadTermDatabase() {
+  try {
+    const data = await API.getTerms();
+    if (data) {
+      state.termDB = data;
+      console.log(`✔ 용어 데이터 로드 완료: ${Object.keys(state.termDB).length}개`);
+    }
+  } catch (error) {
+    console.error('✘ 용어 로드 실패:', error);
+    state.termDB = {};
+  }
+}
+
+// 초기 샘플 데이터 표시
+async function displayInitialSamples() {
+  const resultsBox = document.getElementById('homeResults');
+  if (!resultsBox) return;
+  
+  try {
+    // API에서 최신 데이터 가져오기 (빈 쿼리로 최신 데이터 요청)
+    const [casesResult, lawsResult] = await Promise.allSettled([
+      API.searchPrecedent('형사', { display: 4 }), // 형사 판례 샘플
+      API.searchLaw('법', { display: 3 })  // 기본 법령 샘플
+    ]);
+    
+    let html = '<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-bottom:12px;">최근 데이터</div>';
+    
+    if (casesResult.status === 'fulfilled' && casesResult.value?.items?.length) {
+      casesResult.value.items.slice(0, 3).forEach(caseItem => {
+        html += caseCard(caseItem, `window.goDetail('case','${caseItem.id}')`);
+      });
+    }
+    
+    if (lawsResult.status === 'fulfilled' && lawsResult.value?.items?.length) {
+      lawsResult.value.items.slice(0, 2).forEach(lawItem => {
+        html += lawCard(lawItem, `window.goDetail('law','${lawItem.mst}')`);
+      });
+    }
+    
+    if (html.length > 100) {
+      resultsBox.innerHTML = html;
+    }
+  } catch (error) {
+    console.log('초기 샘플 로드 실패:', error);
+    // 실패해도 에러 표시하지 않음 (빈 화면 유지)
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 테마 관리
+// ════════════════════════════════════════════════════════════════
+window.toggleTheme = () => {
+  const currentMode = document.body.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  const newMode = currentMode === 'dark' ? 'light' : 'dark';
+  setMode(newMode);
+};
+
+window.setMode = (mode) => {
+  const body = document.body;
+  const darkBtn = document.getElementById('bDark');
+  const lightBtn = document.getElementById('bLight');
+  
+  if (mode === 'light') {
+    body.setAttribute('data-theme', 'light');
+    lightBtn?.classList.add('active');
+    darkBtn?.classList.remove('active');
+  } else {
+    body.removeAttribute('data-theme');
+    darkBtn?.classList.add('active');
+    lightBtn?.classList.remove('active');
+  }
+  
+  localStorage.setItem('lexvis-theme', mode);
+};
+
+// ════════════════════════════════════════════════════════════════
+// 페이지 네비게이션
+// ════════════════════════════════════════════════════════════════
+function showPage(pageId) {
+  const pages = ['home', 'subpage', 'detail'];
+  pages.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.classList.toggle('active', id === pageId);
+      element.style.display = id === pageId 
+        ? (id === 'detail' ? 'flex' : 'block') 
+        : 'none';
+    }
+  });
+}
+
+window.goHome = () => showPage('home');
 
 window.goSub = (tab) => {
-  showOnly('subpage');
-  ['cases', 'laws', 'guide'].forEach(t => {
-    const n = document.getElementById('sn-' + t);
-    if (n) n.classList.toggle('active', t === tab);
-  });
+  showPage('subpage');
+  updateSubNavigation(tab);
   renderSubContent(tab);
 };
 
-// ── 서브 페이지 렌더 ──
+function updateSubNavigation(activeTab) {
+  ['cases', 'laws', 'guide'].forEach(tab => {
+    const navItem = document.getElementById(`sn-${tab}`);
+    navItem?.classList.toggle('active', tab === activeTab);
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// 서브 페이지 렌더링
+// ════════════════════════════════════════════════════════════════
 function renderSubContent(tab) {
-  const el = document.getElementById('subContent');
-  if (tab === 'cases') {
-    el.innerHTML = `
-      <div class="sub-header"><h2>판례 검색</h2></div>
-      <div class="sub-body">
-        <div class="full-sb">
-          <input id="cSrch" placeholder="판례번호, 키워드, 당사자명..." onkeydown="if(event.key==='Enter')window.doCaseSearch()">
-          <select class="fsel" id="cCourt">
-            <option value="">법원 전체</option>
-            <option value="400">대법원</option>
-            <option value="500">헌법재판소</option>
-            <option value="300">고등법원</option>
-            <option value="200">지방법원</option>
-          </select>
-          <button class="go-btn" onclick="window.doCaseSearch()">검색</button>
-        </div>
-        <div id="cRes"><div class="hint-text">검색어를 입력하세요</div></div>
-      </div>`;
-  } else if (tab === 'laws') {
-    el.innerHTML = `
-      <div class="sub-header"><h2>법령 데이터베이스</h2></div>
-      <div class="sub-body">
-        <div class="full-sb">
-          <input id="lSrch" placeholder="법령명, 조문, 키워드..." onkeydown="if(event.key==='Enter')window.doLawSearch()">
-          <button class="go-btn" onclick="window.doLawSearch()">검색</button>
-        </div>
-        <div class="law-cat-grid">
-          ${['형법','민법','헌법','형사소송법','상법','근로기준법','의료법','저작권법'].map(n =>
-            `<div class="lcat" onclick="window.doLawSearchByKw('${n}')">${n}</div>`).join('')}
-        </div>
-        <div id="lRes"><div class="hint-text">법령을 검색하거나 분야를 선택하세요</div></div>
-      </div>`;
-  } else {
-    el.innerHTML = `
-      <div class="sub-header"><h2>사용 가이드</h2></div>
-      <div class="sub-body">
-        <div class="guide-grid">
-          <div class="gcard"><h3>판례 열람</h3>
-            <div class="gstep"><div class="snum">1</div><p>판례번호 또는 키워드로 검색합니다.</p></div>
-            <div class="gstep"><div class="snum">2</div><p>결과 클릭 → 상세 뷰어로 이동합니다.</p></div>
-            <div class="gstep"><div class="snum">3</div><p>밑줄 용어 클릭 → 우측 패널 해설 확인.</p></div>
-            <div class="gstep"><div class="snum">4</div><p>'연계 판례' 탭에서 상·하급심 이동.</p></div>
-          </div>
-          <div class="gcard"><h3>법령 열람</h3>
-            <div class="gstep"><div class="snum">1</div><p>법령 DB에서 카테고리 또는 법령명 검색.</p></div>
-            <div class="gstep"><div class="snum">2</div><p>판례 본문의 파란색 법령명 클릭 → 팝업 조문 확인.</p></div>
-            <div class="gstep"><div class="snum">3</div><p>팝업의 '이동' 버튼 → 법령 전문 뷰어.</p></div>
-          </div>
-          <div class="gcard"><h3>용어 사전 편집</h3>
-            <p>판례 뷰어 우측 '용어 해설' 탭 → ⊞ 버튼으로 용어 추가·삭제 가능. 서버에 저장됩니다.</p>
-            <p style="margin-top:8px;">코드로 직접 추가: <code>data/terms.json</code> 파일 편집.</p>
-          </div>
-          <div class="gcard"><h3>API 연동 구조</h3>
-            <p><code>server/lawApi.js</code> → 국가법령정보 API 호출 프록시<br>
-            <code>server/routes/law.js</code> → 법령 엔드포인트<br>
-            <code>server/routes/precedent.js</code> → 판례 엔드포인트<br>
-            <code>.env</code> → OC 키 설정 파일</p>
-          </div>
-        </div>
-      </div>`;
+  const container = document.getElementById('subContent');
+  if (!container) return;
+  
+  const contentRenderers = {
+    cases: renderCasesContent,
+    laws: renderLawsContent,
+    guide: renderGuideContent
+  };
+  
+  const renderer = contentRenderers[tab];
+  if (renderer) {
+    container.innerHTML = renderer();
   }
 }
 
-// ════════════════════════════
-// 홈 검색
-// ════════════════════════════
-window.hTab = (t) => {
-  homeType = t;
-  ['all','case','law'].forEach(x => document.getElementById('ht-'+x).classList.toggle('active', x===t));
+function renderCasesContent() {
+  return `
+    <div class="sub-header"><h2>판례 검색</h2></div>
+    <div class="sub-body">
+      <div class="full-sb">
+        <input id="cSrch" placeholder="판례번호, 키워드, 당사자명..." 
+               onkeydown="if(event.key==='Enter')window.doCaseSearch()">
+        <select class="fsel" id="cCourt">
+          <option value="">법원 전체</option>
+          <option value="400">대법원</option>
+          <option value="500">헌법재판소</option>
+          <option value="300">고등법원</option>
+          <option value="200">지방법원</option>
+        </select>
+        <button class="go-btn" onclick="window.doCaseSearch()">검색</button>
+      </div>
+      <div id="cRes"><div class="hint-text">검색어를 입력하세요</div></div>
+    </div>
+  `;
+}
+
+function renderLawsContent() {
+  const categories = ['형법', '민법', '헌법', '형사소송법', '상법', '근로기준법', '의료법', '저작권법'];
+  
+  return `
+    <div class="sub-header"><h2>법령 데이터베이스</h2></div>
+    <div class="sub-body">
+      <div class="full-sb">
+        <input id="lSrch" placeholder="법령명, 조문, 키워드..." 
+               onkeydown="if(event.key==='Enter')window.doLawSearch()">
+        <button class="go-btn" onclick="window.doLawSearch()">검색</button>
+      </div>
+      <div class="law-cat-grid">
+        ${categories.map(name => 
+          `<div class="lcat" onclick="window.doLawSearchByKw('${name}')">${name}</div>`
+        ).join('')}
+      </div>
+      <div id="lRes"><div class="hint-text">법령을 검색하거나 분야를 선택하세요</div></div>
+    </div>
+  `;
+}
+
+function renderGuideContent() {
+  return `
+    <div class="sub-header"><h2>사용 가이드</h2></div>
+    <div class="sub-body">
+      <div class="guide-grid">
+        <div class="gcard">
+          <h3>판례 열람</h3>
+          <div class="gstep"><div class="snum">1</div><p>판례번호 또는 키워드로 검색합니다.</p></div>
+          <div class="gstep"><div class="snum">2</div><p>결과 클릭 → 상세 뷰어로 이동합니다.</p></div>
+          <div class="gstep"><div class="snum">3</div><p>밑줄 용어 클릭 → 우측 패널 해설 확인.</p></div>
+          <div class="gstep"><div class="snum">4</div><p>'연계 판례' 탭에서 상·하급심 이동.</p></div>
+        </div>
+        <div class="gcard">
+          <h3>법령 열람</h3>
+          <div class="gstep"><div class="snum">1</div><p>법령 DB에서 카테고리 또는 법령명 검색.</p></div>
+          <div class="gstep"><div class="snum">2</div><p>판례 본문의 파란색 법령명 클릭 → 팝업 조문 확인.</p></div>
+          <div class="gstep"><div class="snum">3</div><p>팝업의 '이동' 버튼 → 법령 전문 뷰어.</p></div>
+        </div>
+        <div class="gcard">
+          <h3>용어 사전 편집</h3>
+          <p>판례 뷰어 우측 '용어 해설' 탭 → ⊞ 버튼으로 용어 추가·삭제 가능. 서버에 저장됩니다.</p>
+          <p style="margin-top:8px;">코드로 직접 추가: <code>data/terms.json</code> 파일 편집.</p>
+        </div>
+        <div class="gcard">
+          <h3>API 연동 구조</h3>
+          <p><code>server/lawApi.js</code> → 국가법령정보 API 호출 프록시<br>
+          <code>server/routes/law.js</code> → 법령 엔드포인트<br>
+          <code>server/routes/precedent.js</code> → 판례 엔드포인트<br>
+          <code>.env</code> → OC 키 설정 파일</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ════════════════════════════════════════════════════════════════
+// 스크롤 네비게이션
+// ════════════════════════════════════════════════════════════════
+window.scrollToSectionId = function(id, element) {
+  const target = document.getElementById(id);
+  if (!target) {
+    console.error(`스크롤 실패: ID '${id}'를 찾을 수 없습니다.`);
+    return;
+  }
+  
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  updateTocHighlight(element);
 };
-window.setSearch = (q) => { document.getElementById('hSrch').value = q; doHomeSearch(); };
+
+window.scrollToLawArt = function(id, element) {
+  const target = document.getElementById(id);
+  if (!target) {
+    console.error(`스크롤 실패: ID '${id}'를 찾을 수 없습니다.`);
+    return;
+  }
+  
+  const offset = 100;
+  const elementPosition = target.getBoundingClientRect().top;
+  const offsetPosition = elementPosition + window.pageYOffset - offset;
+  
+  window.scrollTo({
+    top: offsetPosition,
+    behavior: 'smooth'
+  });
+  
+  updateTocHighlight(element);
+};
+
+function updateTocHighlight(activeElement) {
+  document.querySelectorAll('.toc').forEach(toc => toc.classList.remove('active'));
+  activeElement?.classList.add('active');
+}
+
+// ════════════════════════════════════════════════════════════════
+// 홈 페이지 검색
+// ════════════════════════════════════════════════════════════════
+window.hTab = (type) => {
+  state.homeType = type;
+  ['all', 'case', 'law'].forEach(tab => {
+    document.getElementById(`ht-${tab}`)?.classList.toggle('active', tab === type);
+  });
+};
+
+window.setSearch = (query) => {
+  document.getElementById('hSrch').value = query;
+  doHomeSearch();
+};
 
 window.doHomeSearch = async () => {
-  const q   = document.getElementById('hSrch').value.trim();
-  const box = document.getElementById('homeResults');
-  if (!q) { box.innerHTML = '<div class="hint-text">검색어를 입력하세요</div>'; return; }
-
-  box.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  const query = document.getElementById('hSrch').value.trim();
+  const resultsBox = document.getElementById('homeResults');
+  
+  if (!query) {
+    resultsBox.innerHTML = '<div class="hint-text">검색어를 입력하세요</div>';
+    return;
+  }
+  
+  resultsBox.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  
   try {
-    const [cases, laws] = await Promise.allSettled([
-      homeType !== 'law'  ? API.searchPrecedent(q) : Promise.resolve({ items: [] }),
-      homeType !== 'case' ? API.searchLaw(q)       : Promise.resolve({ items: [] }),
-    ]);
+    const searchPromises = [];
+    
+    if (state.homeType !== 'law') {
+      searchPromises.push(API.searchPrecedent(query));
+    }
+    if (state.homeType !== 'case') {
+      searchPromises.push(API.searchLaw(query));
+    }
+    
+    const results = await Promise.allSettled(searchPromises);
+    
     let html = '';
-    (cases.value?.items || []).slice(0,4).forEach(c => { html += caseCard(c, `window.goDetail('case','${c.id}')`); });
-    (laws.value?.items  || []).slice(0,3).forEach(l => { html += lawCard(l,  `window.goDetail('law','${l.mst}')`); });
-    box.innerHTML = html || '<div class="hint-text">검색 결과가 없습니다.</div>';
-  } catch (e) {
-    box.innerHTML = `<div class="hint-text error">오류: ${e.message}</div>`;
+    const casesResult = state.homeType !== 'law' ? results[0] : null;
+    const lawsResult = state.homeType === 'all' ? results[1] : (state.homeType === 'law' ? results[0] : null);
+    
+    if (casesResult?.status === 'fulfilled') {
+      (casesResult.value?.items || []).slice(0, 4).forEach(caseItem => {
+        html += caseCard(caseItem, `window.goDetail('case','${caseItem.id}')`);
+      });
+    }
+    
+    if (lawsResult?.status === 'fulfilled') {
+      (lawsResult.value?.items || []).slice(0, 3).forEach(lawItem => {
+        html += lawCard(lawItem, `window.goDetail('law','${lawItem.mst}')`);
+      });
+    }
+    
+    resultsBox.innerHTML = html || '<div class="hint-text">검색 결과가 없습니다.</div>';
+  } catch (error) {
+    resultsBox.innerHTML = `<div class="hint-text error">오류: ${error.message}</div>`;
   }
 };
 
-// ════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // 판례 검색 (서브 페이지)
-// ════════════════════════════
+// ════════════════════════════════════════════════════════════════
 window.doCaseSearch = async () => {
-  const q     = (document.getElementById('cSrch')?.value || '').trim();
+  const query = document.getElementById('cSrch')?.value.trim();
   const court = document.getElementById('cCourt')?.value || '';
-  const box   = document.getElementById('cRes');
-  if (!q) { box.innerHTML = '<div class="hint-text">검색어를 입력하세요</div>'; return; }
-
-  box.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  const resultsBox = document.getElementById('cRes');
+  
+  if (!query) {
+    // 검색어가 없으면 샘플 표시
+    displayCaseSamples();
+    return;
+  }
+  
+  resultsBox.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  
   try {
-    const data = await API.searchPrecedent(q, { court, display: 30 });
-    let html = '';
-    (data.items || []).forEach(c => { html += caseCardBig(c); });
-    box.innerHTML = html || '<div class="hint-text">검색 결과가 없습니다.</div>';
-  } catch (e) {
-    box.innerHTML = `<div class="hint-text error">오류: ${e.message}</div>`;
+    const data = await API.searchPrecedent(query, { court, display: 30 });
+    const html = (data.items || []).map(caseItem => caseCardBig(caseItem)).join('');
+    resultsBox.innerHTML = html || '<div class="hint-text">검색 결과가 없습니다.</div>';
+  } catch (error) {
+    resultsBox.innerHTML = `<div class="hint-text error">오류: ${error.message}</div>`;
   }
 };
 
-// ════════════════════════════
+// 판례 샘플 데이터 표시
+async function displayCaseSamples() {
+  const box = document.getElementById('cRes');
+  if (!box) return;
+  
+  try {
+    // 형사 판례를 기본 샘플로 표시
+    const data = await API.searchPrecedent('형사', { display: 10 });
+    const items = data.items || [];
+    
+    let html = '<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-bottom:12px;">최근 판례</div>';
+    html += items.slice(0, 8).map(caseItem => caseCardBig(caseItem)).join('');
+    
+    box.innerHTML = html || '<div class="hint-text">검색어를 입력하세요</div>';
+  } catch (error) {
+    box.innerHTML = '<div class="hint-text">검색어를 입력하세요</div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
 // 법령 검색 (서브 페이지)
-// ════════════════════════════
-window.doLawSearch       = async () => doLawSearchByKw(document.getElementById('lSrch')?.value || '');
-window.doLawSearchByKw   = doLawSearchByKw;
-
-async function doLawSearchByKw(kw) {
-  const inp = document.getElementById('lSrch');
-  if (inp) inp.value = kw;
-  const box = document.getElementById('lRes');
-  if (!kw.trim()) return;
-
-  box.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
-  try {
-    const data = await API.searchLaw(kw, { display: 30 });
-    let html = '';
-    (data.items || []).forEach(l => { html += lawCardBig(l); });
-    box.innerHTML = html || '<div class="hint-text">검색 결과가 없습니다.</div>';
-  } catch (e) {
-    box.innerHTML = `<div class="hint-text error">오류: ${e.message}</div>`;
-  }
-}
-
-// ════════════════════════════
-// 상세 뷰어
-// ════════════════════════════
-window.goDetail = async (type, id) => {
-  currentDetailType = type;
-  currentDetailId   = id;
-  showOnly('detail');
-  clearInlineSearch();
-  showTab('terms');
-
-  const body = document.getElementById('caseBody');
-  body.innerHTML = '<div class="loading-wrap"><div class="spinner"></div><span style="margin-left:10px;color:var(--text-muted);">불러오는 중...</span></div>';
-
-  try {
-    if (type === 'case') {
-      const data = await API.getPrecedentDetail(id);
-      renderCaseDetail(data);
-    } else {
-      const data = await API.getLawDetail(id);
-      renderLawDetail(data);
-    }
-  } catch (e) {
-    body.innerHTML = `<div class="hint-text error">불러오기 실패: ${e.message}</div>`;
-  }
+// ════════════════════════════════════════════════════════════════
+window.doLawSearch = async () => {
+  const query = document.getElementById('lSrch')?.value.trim();
+  await performLawSearch(query);
 };
 
-// ── 판례 본문 렌더 ──
-function renderCaseDetail(d) {
-  document.getElementById('dNum').textContent    = `${d.court || ''} ${d.caseNum || ''}`;
-  document.getElementById('dChip1').textContent  = d.category || '판례';
-  document.getElementById('dChip2').textContent  = d.result   || '';
-  document.getElementById('dChip2').style.display = d.result ? '' : 'none';
+window.doLawSearchByKw = async (keyword) => {
+  const input = document.getElementById('lSrch');
+  if (input) input.value = keyword;
+  await performLawSearch(keyword, true); // 정확한 매칭 플래그 추가
+};
 
-  // 참조조문에서 법령 링크 생성
-  const refLawsHtml = d.refLaws
-    ? d.refLaws.replace(/([\w가-힣]+법\s*제\d+조[의\d조항호목]*)/g,
-        m => `<span class="law-ref" onclick="window.openLawPopup('${m}')">${m}</span>`)
-    : '';
-
-  // 판례내용 정제 (API HTML 태그 처리)
-  const fullText = (d.fullText || '본문을 불러올 수 없습니다.')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<[^>]+>/g, '');
-
-  document.getElementById('caseBody').innerHTML = `
-    <div class="case-hd">
-      <div class="case-court-badge">⚖ ${d.court || ''}</div>
-      <h1 class="case-title">${d.caseName || d.caseNum || ''}</h1>
-      <div class="case-meta">
-        <span class="mi"><span class="ml">사건번호</span>${d.caseNum || ''}</span>
-        <span class="mi"><span class="ml">선고일</span>${formatDate(d.date)}</span>
-        <span class="mi"><span class="ml">결과</span>${d.result || ''}</span>
-      </div>
-    </div>
-    ${d.summary ? `<div class="ls"><div class="lt">판시사항</div><div class="lbody">${d.summary}</div></div>` : ''}
-    ${d.gist    ? `<div class="ls"><div class="lt">판결요지</div><div class="lbody">${d.gist}</div></div>`    : ''}
-    ${refLawsHtml ? `<div class="ls"><div class="lt">참조조문</div><div class="lbody">${refLawsHtml}</div></div>` : ''}
-    ${d.refCases  ? `<div class="ls"><div class="lt">참조판례</div><div class="lbody ref-cases">${d.refCases}</div></div>` : ''}
-    <div class="ls" id="fullTextSection">
-      <div class="lt">판례 전문</div>
-      <div class="lbody" style="white-space:pre-wrap;">${fullText}</div>
-    </div>
-    <div style="height:80px;"></div>`;
-
-  // renderCaseDetail 함수 최하단 수정
-  renderLeftPanel('case', d);
+async function performLawSearch(query, exactMatch = false) {
+  const resultsBox = document.getElementById('lRes');
   
-  // 브라우저가 본문을 다 그린 후 하이라이트 적용
-  requestAnimationFrame(() => { 
-    applyTermHighlighting(); 
-    buildAutoTermList(); 
-  });
-}
-
-function renderLawDetail(d) {
-  document.getElementById('dNum').textContent = `법령 · ${d.name || ''}`;
-  document.getElementById('dChip1').textContent = d.type || '법령';
-  document.getElementById('dChip1').className = 'chip chip-b';
-  document.getElementById('dChip2').style.display = 'none';
-
-  // 우리가 만든 계층형 렌더러 호출
-  const contentsHtml = renderLawContents(d.contents);
-
-  document.getElementById('caseBody').innerHTML = `
-    <div class="case-hd">
-      <div class="case-court-badge">📄 ${d.type || '법령'}</div>
-      <h1 class="case-title">${d.name || ''}</h1>
-      <div class="case-meta">
-        <span class="mi"><span class="ml">소관부처</span>${d.department || ''}</span>
-        <span class="mi"><span class="ml">공포일</span>${formatDate(d.promulgDate)}</span>
-        <span class="mi"><span class="ml">시행일</span>${formatDate(d.enforcDate)}</span>
-      </div>
-    </div>
-    <div class="law-viewer-body">
-      ${contentsHtml || '<div class="hint-text">조문 정보를 불러올 수 없습니다.</div>'}
-    </div>
-    <div style="height:80px;"></div>`;
-
-  renderLeftPanel('law', d);
-  // 텍스트 강조 및 용어 사전 빌드
-  setTimeout(() => { applyTermHighlighting(); buildAutoTermList(); }, 80);
-}
-
-// ════════════════════════════
-// 법령 팝업 (수정본)
-// ════════════════════════════
-window.openLawPopup = async (lawName) => {
-  const titleEl = document.getElementById('lmTitle');
-  const subEl = document.getElementById('lmSub');
-  const bodyEl = document.getElementById('lmBody');
-  const refEl = document.getElementById('lmRef');
-  const goBtn = document.getElementById('lmGoBtn');
-
-  titleEl.textContent = lawName;
-  subEl.textContent = '조문 불러오는 중...';
-  bodyEl.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
-  refEl.textContent = '';
-  document.getElementById('lawModal').classList.add('show');
-
+  if (!query) {
+    // 검색어가 없으면 샘플 표시
+    displayLawSamples();
+    return;
+  }
+  
+  resultsBox.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  
   try {
-    const data = await API.getLawArticleByName(lawName);
-    if (!data) { 
-      subEl.textContent = '조문을 찾을 수 없습니다.'; 
-      bodyEl.innerHTML = ''; 
-      return; 
-    }
-
-    subEl.textContent = '';
-    refEl.textContent = `제${data.num}조 ${data.title || ''}`;
+    const data = await API.searchLaw(query, { display: 50 });
+    let items = data.items || [];
     
-    // 💡 핵심: 새로운 계층형 구조(paragraphs)를 팝업용 HTML로 변환
-    let bodyHtml = `<div class="lbody">`;
-    
-    // 1. 조문의 기본 문장 (있는 경우)
-    if (data.content) {
-      bodyHtml += `<div class="art-main-content" style="margin-bottom:10px;">${data.content}</div>`;
-    }
-
-    // 2. 항(①), 호(1.), 목(가.) 처리
-    // 우리가 만든 renderLawParagraphs 함수를 여기서도 재활용합니다!
-    if (data.paragraphs && data.paragraphs.length > 0) {
-      bodyHtml += renderLawParagraphs(data.paragraphs);
-    } 
-    // (하위 호환성용) 이전 구조의 데이터가 올 경우 처리
-    else if (data.items && data.items.length > 0) {
-      bodyHtml += data.items.map(h => `
-        <div style="padding-left:1.2em; margin-top:4px;">
-          ${h.num} ${h.content}
-        </div>
-      `).join('');
-    }
-    
-    bodyHtml += `</div>`;
-    bodyEl.innerHTML = bodyHtml;
-
-    // 3. 해당 법률 전문 페이지로 이동하는 버튼 설정
-    const matched = lawName.match(/^(.+?)\s+제\d+조/);
-    if (matched) {
-      goBtn.onclick = async () => {
-        document.getElementById('lawModal').classList.remove('show');
-        const srch = await API.searchLaw(matched[1], { display: 1 });
-        if (srch.items?.length) window.goDetail('law', srch.items[0].mst);
-      };
-    }
-  } catch (e) {
-    subEl.textContent = `오류: ${e.message}`;
-    bodyEl.innerHTML = '';
-  }
-};
-window.closeLawModal = (e) => { if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('show'); };
-
-// ════════════════════════════
-// 용어 사전
-// ════════════════════════════
-function applyTermHighlighting() {
-  document.querySelectorAll('.lbody').forEach(el => {
-    // 기존 term span 제거
-    el.innerHTML = el.innerHTML.replace(/<span class="term"[^>]*>([^<]+)<\/span>/g, '$1');
-    const sorted = Object.keys(termDB).sort((a, b) => b.length - a.length);
-    walkAndMark(el, sorted);
-  });
-}
-
-function walkAndMark(node, words) {
-  if (node.nodeType === 3) {
-    const text = node.textContent;
-    if (!words.some(w => text.includes(w))) return;
-    const positions = [];
-    words.forEach(w => {
-      let i = 0;
-      while ((i = text.indexOf(w, i)) !== -1) { positions.push({ s: i, e: i + w.length, w }); i += w.length; }
-    });
-    positions.sort((a, b) => a.s - b.s || (b.e - b.s) - (a.e - a.s));
-    const used = [], merged = [];
-    positions.forEach(p => { if (!used.some(u => p.s < u.e && p.e > u.s)) { merged.push(p); used.push(p); } });
-    merged.sort((a, b) => a.s - b.s);
-    const frag = document.createDocumentFragment();
-    let cur = 0;
-    merged.forEach(p => {
-      if (p.s > cur) frag.appendChild(document.createTextNode(text.slice(cur, p.s)));
-      const sp = document.createElement('span');
-      sp.className = 'term';
-      sp.textContent = p.w;
-      const ww = p.w;
-      sp.onclick = () => showTermPanel(ww);
-      frag.appendChild(sp);
-      cur = p.e;
-    });
-    if (cur < text.length) frag.appendChild(document.createTextNode(text.slice(cur)));
-    node.parentNode.replaceChild(frag, node);
-  } else if (node.nodeType === 1 && !node.classList.contains('term') && !node.classList.contains('law-ref')) {
-    Array.from(node.childNodes).forEach(c => walkAndMark(c, words));
-  }
-}
-
-function buildAutoTermList() {
-  const bodyText = document.getElementById('caseBody')?.textContent || '';
-  const found = Object.keys(termDB).filter(w => bodyText.includes(w));
-  document.getElementById('autoTerms').innerHTML = found.slice(0, 9).map(w =>
-    `<div class="tcrd" onclick="window.showTermPanel('${w}')">
-      <div class="tw">${w}</div>
-      <div class="th">${termDB[w].hanja}</div>
-      <div class="td ellipsis">${termDB[w].def.substring(0, 48)}...</div>
-    </div>`
-  ).join('');
-}
-
-window.showTermPanel = showTermPanel;
-function showTermPanel(word) {
-  showTab('terms');
-  const d = termDB[word]; if (!d) return;
-  document.getElementById('termHint').style.display = 'none';
-  document.getElementById('termDetail').innerHTML = `
-    <div class="tcrd selected">
-      <div class="tw" style="font-size:15px;">${word}</div>
-      <div class="th">${d.hanja}</div>
-      <div class="td" style="white-space:pre-line;margin-bottom:6px;">${d.def}</div>
-      <div class="tl2">${d.law}</div>
-    </div>`;
-}
-
-// 용어 편집
-window.openTermEdit = () => { renderTermList(); document.getElementById('termEditModal').classList.add('show'); };
-window.closeTermEdit = (e) => { if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('show'); };
-
-function renderTermList() {
-  renderTermCount();
-  document.getElementById('termList').innerHTML = Object.entries(termDB).map(([w, d]) =>
-    `<div class="teli">
-      <div style="flex:1;"><div class="teliw">${w} <span style="font-size:10px;color:var(--text-dim);">${d.hanja}</span></div>
-      <div class="telid">${d.def.substring(0, 50)}${d.def.length > 50 ? '...' : ''}</div></div>
-      <button class="tdel" onclick="window.deleteTerm('${w}')">삭제</button>
-    </div>`
-  ).join('');
-}
-function renderTermCount() {
-  const el = document.getElementById('termCount');
-  if (el) el.textContent = `(${Object.keys(termDB).length}개)`;
-}
-
-window.submitAddTerm = async () => {
-  const word = document.getElementById('nWord').value.trim();
-  const def  = document.getElementById('nDef').value.trim();
-  if (!word || !def) { showToast('용어와 정의는 필수입니다.'); return; }
-  const data = { word, hanja: document.getElementById('nHanja').value.trim(), def, law: document.getElementById('nLaw').value.trim() };
-  await API.addTerm(data);
-  termDB[word] = { hanja: data.hanja, def: data.def, law: data.law };
-  ['nWord','nHanja','nDef','nLaw'].forEach(id => document.getElementById(id).value = '');
-  renderTermList(); applyTermHighlighting(); buildAutoTermList();
-  showToast(`"${word}" 용어가 추가됐습니다.`);
-};
-window.deleteTerm = async (word) => {
-  if (!confirm(`"${word}" 용어를 삭제하시겠습니까?`)) return;
-  await API.deleteTerm(word);
-  delete termDB[word];
-  renderTermList(); applyTermHighlighting(); buildAutoTermList();
-};
-
-// ════════════════════════════
-// 하이라이트 (드래그)
-// ════════════════════════════
-// 하이라이트 실행 함수 (이전 답변에서 드린 개선된 버전)
-window.applyHighlight = () => {
-  const selection = window.getSelection();
-  if (selection.rangeCount === 0 || selection.isCollapsed) return;
-
-  const range = selection.getRangeAt(0);
-  const span = document.createElement('span');
-  span.className = 'uhl'; // viewer.css의 .uhl 스타일 사용
-  
-  try {
-    range.surroundContents(span);
-    selection.removeAllRanges();
-  } catch (e) {
-    console.warn("영역이 복잡하여 하이라이트를 적용할 수 없습니다.");
-  }
-};
-
-// 하이라이트 전체 삭제
-window.clearHighlights = () => {
-  const highlights = document.querySelectorAll('.uhl');
-  highlights.forEach(el => {
-    const parent = el.parentNode;
-    while (el.firstChild) parent.insertBefore(el.firstChild, el);
-    parent.removeChild(el);
-  });
-};
-
-// 💡 용어 토글 함수만 남김
-let showTerms = true;
-window.toggleTerms = () => {
-  const bodyEl = document.getElementById('caseBody');
-  const btn = document.getElementById('btnTermToggle');
-  if (!bodyEl || !btn) return;
-
-  showTerms = !showTerms;
-  if (showTerms) {
-    bodyEl.classList.remove('hide-terms');
-    btn.classList.add('active');
-    btn.textContent = '법률 용어 : 켬';
-  } else {
-    bodyEl.classList.add('hide-terms');
-    btn.classList.remove('active');
-    btn.textContent = '법률 용어 : 끔';
-  }
-};
-
-// 모든 하이라이트 지우기
-window.clearHighlights = () => {
-  const highlights = document.querySelectorAll('.uhl');
-  highlights.forEach(el => {
-    const parent = el.parentNode;
-    while (el.firstChild) {
-      parent.insertBefore(el.firstChild, el);
-    }
-    parent.removeChild(el);
-  });
-};
-// 본문 내 검색
-// ════════════════════════════
-window.doInlineSearch = doInlineSearch;
-function doInlineSearch() {
-  const q = document.getElementById('iSrch').value.trim();
-  if (q === iLastQ) return;
-  iLastQ = q;
-  document.querySelectorAll('.sh').forEach(el => { el.outerHTML = el.textContent; });
-  iMatches = []; iIdx = 0;
-  if (!q) { document.getElementById('iCnt').textContent = ''; return; }
-
-  const center = document.getElementById('panelCenter');
-  const walker = document.createTreeWalker(center, NodeFilter.SHOW_TEXT, {
-    acceptNode: n => {
-      const p = n.parentElement;
-      if (!p || ['SCRIPT','STYLE','BUTTON'].includes(p.tagName)) return NodeFilter.FILTER_REJECT;
-      if (p.closest('.viewer-toolbar')) return NodeFilter.FILTER_REJECT;
-      return NodeFilter.FILTER_ACCEPT;
-    }
-  });
-  const nodes = [];
-  while (walker.nextNode()) nodes.push(walker.currentNode);
-
-  const ql = q.toLowerCase();
-  nodes.forEach(node => {
-    const text  = node.textContent;
-    const lower = text.toLowerCase();
-    let i = 0;
-    while ((i = lower.indexOf(ql, i)) !== -1) {
-      const range = document.createRange();
-      range.setStart(node, i); range.setEnd(node, i + q.length);
-      const sp = document.createElement('span');
-      sp.className = 'sh';
-      try { range.surroundContents(sp); iMatches.push(sp); } catch (e) {}
-      i += q.length;
-    }
-  });
-
-  const cntEl = document.getElementById('iCnt');
-  cntEl.textContent = iMatches.length > 0 ? `1/${iMatches.length}` : '없음';
-  if (iMatches.length) hlCurrent();
-}
-
-function hlCurrent() {
-  iMatches.forEach((m, i) => m.classList.toggle('cur', i === iIdx));
-  if (iMatches[iIdx]) iMatches[iIdx].scrollIntoView({ behavior: 'smooth', block: 'center' });
-  document.getElementById('iCnt').textContent = `${iIdx + 1}/${iMatches.length}`;
-}
-window.nextMatch = () => { if (!iMatches.length) { doInlineSearch(); return; } iIdx = (iIdx + 1) % iMatches.length; hlCurrent(); };
-window.prevMatch = () => { if (!iMatches.length) return; iIdx = (iIdx - 1 + iMatches.length) % iMatches.length; hlCurrent(); };
-function clearInlineSearch() {
-  const inp = document.getElementById('iSrch');
-  if (inp) inp.value = '';
-  document.getElementById('iCnt').textContent = '';
-  document.querySelectorAll('.sh').forEach(el => { el.outerHTML = el.textContent; });
-  iMatches = []; iIdx = 0; iLastQ = '';
-}
-
-// ════════════════════════════
-// 뷰어 설정
-// ════════════════════════════
-// 1. 테마 적용 핵심 함수
-window.setMode = (mode) => {
-  const html = document.documentElement;
-  
-  // 모든 테마 관련 클래스/속성 초기화
-  html.removeAttribute('data-theme'); 
-  
-  if (mode === 'light') {
-    html.setAttribute('data-theme', 'light');
-  } 
-  // 만약 'coding' 모드 같은 게 더 있다면 여기에 else if 추가 가능
-
-  // 로컬 스토리지 저장 (새로고침해도 유지되게)
-  localStorage.setItem('lexvis-theme', mode);
-
-  // UI 버튼들 상태 업데이트 (활성화 표시)
-  updateThemeUI(mode);
-};
-
-// 2. 상단 아이콘(☀) 클릭 시 토글 로직
-window.toggleTheme = () => {
-  const current = localStorage.getItem('lexvis-theme') || 'dark';
-  const target = current === 'dark' ? 'light' : 'dark';
-  window.setMode(target);
-};
-
-// 3. 버튼들의 'active' 클래스 관리
-function updateThemeUI(mode) {
-  const btnDark = document.getElementById('bDark');
-  const btnLight = document.getElementById('bLight');
-  const themeIcons = document.querySelectorAll('.icon-btn'); // 상단 ☀ 버튼들
-
-  if (mode === 'dark') {
-    btnDark?.classList.add('active');
-    btnLight?.classList.remove('active');
-    themeIcons.forEach(icon => { if(icon.innerText === '☀') icon.innerText = '🌙' });
-  } else {
-    btnLight?.classList.add('active');
-    btnDark?.classList.remove('active');
-    themeIcons.forEach(icon => { if(icon.innerText === '🌙') icon.innerText = '☀' });
-  }
-}
-
-// 4. 페이지 로드 시 초기화
-document.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem('lexvis-theme') || 'dark';
-  window.setMode(saved);
-});
-
-window.updateProgress = () => {
-  const centerEl = document.getElementById('panelCenter');
-  if (!centerEl) return;
-
-  // 1. 상단 게이지
-  const progress = (centerEl.scrollTop / (centerEl.scrollHeight - centerEl.clientHeight)) * 100;
-  const progBar = document.getElementById('readingProgress');
-  if (progBar) progBar.style.width = progress + '%';
-
-  // 2. 실시간 위치 추적 (Scroll Spy)
-  if (currentDetailType === 'law') {
-    const targets = document.querySelectorAll('.article-box, .law-para-box');
-    let currentId = "";
-
-    for (const target of targets) {
-      const rect = target.getBoundingClientRect();
-      // 중앙 패널 상단 기준 150px 이내에 들어오면 "현재 읽는 중"으로 간주
-      if (rect.top <= 150) {
-        currentId = target.id;
-      } else {
-        break;
-      }
-    }
-
-    if (currentId) {
-      // 1) 모든 목차에서 active 제거
-      document.querySelectorAll('.toc').forEach(t => t.classList.remove('active'));
+    // 정확한 매칭이 요구되면 법령명이 정확히 일치하는 것만 필터링
+    if (exactMatch && items.length > 0) {
+      items = items.filter(item => 
+        item.name === query || item.name.includes(query)
+      );
       
-      // 2) 현재 위치의 목차 항목 활성화
-      const activeToc = document.getElementById(`toc-${currentId}`);
-      if (activeToc) {
-        activeToc.classList.add('active');
-        
-        // 3) 활성화된 목차가 목차 패널 밖으로 나갔으면 부드럽게 스크롤
-        const panelLeft = document.getElementById('panelLeft');
-        const activeRect = activeToc.getBoundingClientRect();
-        const panelRect = panelLeft.getBoundingClientRect();
-
-        if (activeRect.top < panelRect.top || activeRect.bottom > panelRect.bottom) {
-          activeToc.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      }
+      // 정확히 일치하는 것을 우선 표시
+      items.sort((a, b) => {
+        if (a.name === query) return -1;
+        if (b.name === query) return 1;
+        return 0;
+      });
     }
+    
+    const html = items.map(lawItem => lawCardBig(lawItem)).join('');
+    resultsBox.innerHTML = html || '<div class="hint-text">검색 결과가 없습니다.</div>';
+  } catch (error) {
+    resultsBox.innerHTML = `<div class="hint-text error">오류: ${error.message}</div>`;
+  }
+}
+
+// 법령 샘플 데이터 표시
+async function displayLawSamples() {
+  const resultsBox = document.getElementById('lRes');
+  if (!resultsBox) return;
+  
+  try {
+    // 주요 법령 키워드로 샘플 표시
+    const data = await API.searchLaw('법', { display: 10 });
+    const items = data.items || [];
+    
+    let html = '<div style="text-align:center;color:var(--text-muted);font-size:12px;margin-bottom:12px;">주요 법령</div>';
+    html += items.slice(0, 8).map(lawItem => lawCardBig(lawItem)).join('');
+    
+    resultsBox.innerHTML = html || '<div class="hint-text">법령을 검색하거나 분야를 선택하세요</div>';
+  } catch (error) {
+    resultsBox.innerHTML = '<div class="hint-text">법령을 검색하거나 분야를 선택하세요</div>';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 상세 페이지 표시
+// ════════════════════════════════════════════════════════════════
+window.goDetail = async (type, id) => {
+  state.currentDetail.type = type;
+  state.currentDetail.id = id;
+  
+  showPage('detail');
+  
+  const bodyElement = document.getElementById('caseBody');
+  bodyElement.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  
+  try {
+    const data = type === 'case' 
+      ? await API.getPrecedentDetail(id)
+      : await API.getLawDetail(id);
+    
+    if (!data) throw new Error('데이터를 불러올 수 없습니다');
+    
+    renderDetailView(type, data);
+  } catch (error) {
+    bodyElement.innerHTML = `<div class="hint-text error">오류: ${error.message}</div>`;
   }
 };
 
-window.scrollToArt = (id, el) => {
-  const t = document.getElementById(id);
-  if (t) document.getElementById('panelCenter').scrollTo({ top: t.offsetTop - 16, behavior: 'smooth' });
-  document.querySelectorAll('.toc').forEach(t => t.classList.remove('active'));
-  if (el) el.classList.add('active');
-};
-window.scrollToSection = (title, el) => {
-  const all = document.querySelectorAll('.lt');
-  for (const lt of all) {
-    if (lt.textContent.includes(title)) {
-      document.getElementById('panelCenter').scrollTo({ top: lt.parentElement.offsetTop - 16, behavior: 'smooth' });
-      break;
-    }
+function renderDetailView(type, data) {
+  updateDetailHeader(type, data);
+  renderLeftPanel(type, data);
+  renderCenterPanel(type, data);
+  
+  if (type === 'case') {
+    loadRelatedCases(data);
+    extractAndDisplayTerms(data.fullText || '');
   }
-  document.querySelectorAll('.toc').forEach(t => t.classList.remove('active'));
-  if (el) el.classList.add('active');
-};
-
-// ════════════════════════════
-// 카드 렌더 헬퍼
-// ════════════════════════════
-function caseCard(c, onclick) {
-  return `<div class="ri" onclick="${onclick}">
-    <div class="rc">${c.court} · ${c.caseNum} · ${formatDate(c.date)}</div>
-    <div class="rt">${c.caseName || c.caseNum}</div>
-    <div class="rtags"><span class="ts t형법">${c.category || '판례'}</span></div>
-  </div>`;
-}
-function lawCard(l, onclick) {
-  return `<div class="ri law-ri" onclick="${onclick}">
-    <div class="rc">법령 · ${l.department || ''}</div>
-    <div class="rt">${l.name}</div>
-    <div class="rtags"><span class="ts tlaw">${l.type || '법률'}</span></div>
-  </div>`;
-}
-function caseCardBig(c) {
-  return `<div class="bri" onclick="window.goDetail('case','${c.id}')">
-    <div>
-      <div class="bri-court">${c.court}</div>
-      <div class="bri-title">${c.caseName || c.caseNum}</div>
-      <div class="rtags" style="margin-top:4px;">
-        <span class="ts t형법">${c.category || '판례'}</span>
-        <span class="badge badge-c">${c.caseNum}</span>
-      </div>
-    </div>
-    <div style="text-align:right;flex-shrink:0;margin-left:16px;">
-      <div style="font-size:11px;font-family:var(--font-mono);color:var(--text-dim);">${formatDate(c.date)}</div>
-      <div class="badge badge-c" style="margin-top:4px;">${c.result || '판례'}</div>
-    </div>
-  </div>`;
-}
-function lawCardBig(l) {
-  return `<div class="bri" onclick="window.goDetail('law','${l.mst}')">
-    <div>
-      <div class="bri-court">${l.department || ''}</div>
-      <div class="bri-title">${l.name}</div>
-      <div class="rtags" style="margin-top:4px;"><span class="badge badge-l">${l.type || '법률'}</span></div>
-    </div>
-    <div style="text-align:right;flex-shrink:0;margin-left:16px;">
-      <div style="font-size:11px;color:var(--text-dim);">시행 ${formatDate(l.enforcDate)}</div>
-    </div>
-  </div>`;
 }
 
-function formatDate(d) {
-  if (!d) return '';
-  const s = String(d);
-  if (s.length === 8) return `${s.slice(0,4)}.${s.slice(4,6)}.${s.slice(6,8)}.`;
-  return s;
+function updateDetailHeader(type, data) {
+  const numElement = document.getElementById('dNum');
+  const chip1 = document.getElementById('dChip1');
+  const chip2 = document.getElementById('dChip2');
+  
+  if (type === 'case') {
+    numElement.textContent = data.caseNum || '판례';
+    chip1.textContent = data.court || '';
+    chip2.textContent = data.date || '';
+  } else {
+    numElement.textContent = data.name || '법령';
+    chip1.textContent = data.category || '';
+    chip2.textContent = data.date || '';
+  }
 }
 
-function showToast(msg) {
-  const t = document.createElement('div');
-  t.className = 'toast'; t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(() => t.remove(), 2500);
+// ════════════════════════════════════════════════════════════════
+// 좌측 패널 렌더링
+// ════════════════════════════════════════════════════════════════
+function renderLeftPanel(type, data) {
+  const panelElement = document.getElementById('panelLeft');
+  if (!panelElement) return;
+  
+  if (type === 'case') {
+    panelElement.innerHTML = renderCaseToc(data);
+  } else {
+    panelElement.innerHTML = renderLawToc(data);
+  }
 }
 
-// 💡 [함수 1] 법령 본문 전체 렌더링 (재귀 구조)
-function renderLawContents(nodes) {
-  if (!nodes || !Array.isArray(nodes)) return "";
-  let html = "";
-
-  nodes.forEach(node => {
-    if (node.type === "part") {
-      html += `<div class="law-part">${node.title}</div>`;
-      if (node.children) html += renderLawContents(node.children);
-    } 
-    else if (node.type === "chapter") {
-      html += `<div class="law-chapter">${node.title}</div>`;
-      if (node.children) html += renderLawContents(node.children);
-    } 
-    else if (node.type === "section") {
-      html += `<div class="law-section">${node.title}</div>`;
-      if (node.children) html += renderLawContents(node.children);
-    } 
-    else if (node.type === "article") {
-      const artId = `art-${node.num}`;
-      html += `
-        <div class="ls article-box" id="${artId}">
-          <div class="lt"><span class="ln">제${node.num}조</span> ${node.title || ''}</div>
-          <div class="lbody">
-            ${node.content ? `<div class="art-main-content">${node.content}</div>` : ""}
-            ${node.paragraphs ? renderLawParagraphs(node.paragraphs, artId) : ""}
-          </div>
-        </div>`;
-    }
+function renderCaseToc(data) {
+  const config = getCaseTypeConfig(data.caseNum || '');
+  
+  let html = `
+    <div class="pst">정보</div>
+    <div class="case-type-badge ${config.class}">${config.name}</div>
+    <div class="toc-info"><span class="ml">사건</span>${data.caseNum || ''}</div>
+    <div class="toc-info"><span class="ml">법원</span>${data.court || ''}</div>
+    <div class="toc-info"><span class="ml">선고일</span>${data.date || ''}</div>
+    <div class="tdivider"></div>
+    <div class="pst">관계인</div>
+  `;
+  
+  config.labels.forEach(label => {
+    html += `<div class="toc-info"><span class="ml">${label}</span>정보 확인 중</div>`;
   });
+  
+  html += `
+    <div class="tdivider"></div>
+    <div class="pst">섹션</div>
+    <div class="toc active" onclick="scrollToSectionId('case-top', this)">판례 개요</div>
+  `;
+  
+  if (data.summary) html += `<div class="toc" onclick="scrollToSectionId('section-summary', this)">판시사항</div>`;
+  if (data.gist) html += `<div class="toc" onclick="scrollToSectionId('section-gist', this)">판결요지</div>`;
+  if (data.refLaws) html += `<div class="toc" onclick="scrollToSectionId('section-ref-laws', this)">참조조문</div>`;
+  if (data.refCases) html += `<div class="toc" onclick="scrollToSectionId('section-ref-cases', this)">참조판례</div>`;
+  
+  if (data.fullText) {
+    const sections = data.fullText.match(/【(.*?)】/g);
+    if (sections) {
+      sections.forEach((title, idx) => {
+        const cleanTitle = title.replace(/[【】]/g, '');
+        html += `<div class="toc toc-case-section" onclick="scrollToSectionId('section-${idx}', this)">${cleanTitle}</div>`;
+      });
+    }
+  }
+  
   return html;
 }
 
-// 💡 [함수 2] 본문의 '항(①)' 렌더링 (ID 부여 핵심)
-function renderLawParagraphs(paras, articleId) {
-  return paras.map((p, idx) => {
-    const pId = `${articleId}-p${idx}`; // 예: art-1-p0
+function renderLawToc(data) {
+  let html = '<div class="pst">법령 목차</div>';
+  html += buildLawTocTree(data.contents || []);
+  return html;
+}
+
+function buildLawTocTree(nodes) {
+  if (!Array.isArray(nodes)) return '';
+  
+  return nodes.map(node => {
+    if (['part', 'chapter', 'section', 'sub-section'].includes(node.type)) {
+      const childrenHtml = node.children ? buildLawTocTree(node.children) : '';
+      return `
+        <div class="toc toc-${node.type}" style="font-weight:bold; color:#34495e; margin-top:10px;">
+          ${node.title}
+        </div>
+        ${childrenHtml}
+      `;
+    } else if (node.type === 'article') {
+      const articleId = `art-${node.num}`;
+      return `
+        <div class="toc toc-art" onclick="scrollToLawArt('${articleId}', this)" 
+             style="padding-left:20px; font-size:0.9em;">
+          제${node.num}조 ${node.title || ''}
+        </div>
+      `;
+    }
+    return '';
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════════════
+// 중앙 패널 렌더링
+// ════════════════════════════════════════════════════════════════
+function renderCenterPanel(type, data) {
+  const bodyElement = document.getElementById('caseBody');
+  if (!bodyElement) return;
+  
+  if (type === 'case') {
+    bodyElement.innerHTML = renderCaseBody(data);
+  } else {
+    bodyElement.innerHTML = renderLawBody(data);
+  }
+  
+  attachTermClickHandlers();
+}
+
+function renderCaseBody(data) {
+  let html = '<div id="case-top"></div>';
+  
+  // 판례 제목 및 메타 정보
+  html += `
+    <div class="case-hd">
+      <div class="case-court-badge">${data.court || ''}</div>
+      <h1 class="case-title">${data.caseNum || ''}</h1>
+      <div class="case-meta">
+        <span class="mi"><span class="ml">선고일</span>${data.date || ''}</span>
+      </div>
+    </div>
+  `;
+  
+  if (data.summary) {
+    html += `
+      <div class="ls" id="section-summary">
+        <div class="lt">판시사항</div>
+        <div class="lbody">${formatText(data.summary)}</div>
+      </div>
+    `;
+  }
+  
+  if (data.gist) {
+    html += `
+      <div class="ls" id="section-gist">
+        <div class="lt">판결요지</div>
+        <div class="lbody">${formatText(data.gist)}</div>
+      </div>
+    `;
+  }
+  
+  if (data.refLaws) {
+    html += `
+      <div class="ls" id="section-ref-laws">
+        <div class="lt">참조조문</div>
+        <div class="lbody">${highlightLawReferences(data.refLaws)}</div>
+      </div>
+    `;
+  }
+  
+  if (data.refCases) {
+    html += `
+      <div class="ls" id="section-ref-cases">
+        <div class="lt">참조판례</div>
+        <div class="lbody">${formatText(data.refCases)}</div>
+      </div>
+    `;
+  }
+  
+  if (data.fullText) {
+    let sectionIndex = 0;
+    const processedText = data.fullText.replace(/【(.*?)】/g, (match) => {
+      return `<div id="section-${sectionIndex++}" class="case-section-target" style="font-weight:bold; margin-top:20px; color:var(--accent);">${match}</div>`;
+    });
+    
+    html += `<div class="ls"><div class="lbody">${highlightTermsInText(processedText)}</div></div>`;
+  }
+  
+  return html;
+}
+
+function renderLawBody(data) {
+  let html = `
+    <div class="case-hd">
+      <h1 class="law-main-title">${data.name || ''}</h1>
+      <div class="law-info-meta">
+        ${data.category ? `<span>${data.category}</span> · ` : ''}
+        ${data.date ? `<span>${data.date}</span>` : ''}
+      </div>
+    </div>
+  `;
+  
+  html += renderLawStructure(data.contents || []);
+  return html;
+}
+
+function renderLawStructure(nodes) {
+  if (!Array.isArray(nodes)) return '';
+  
+  return nodes.map(node => {
+    if (node.type === 'part') {
+      const childrenHtml = node.children ? renderLawStructure(node.children) : '';
+      return `
+        <div class="law-hierarchy-header part">${node.title}</div>
+        ${childrenHtml}
+      `;
+    } else if (node.type === 'chapter') {
+      const childrenHtml = node.children ? renderLawStructure(node.children) : '';
+      return `
+        <div class="law-hierarchy-header chapter">${node.title}</div>
+        ${childrenHtml}
+      `;
+    } else if (node.type === 'section' || node.type === 'sub-section') {
+      const childrenHtml = node.children ? renderLawStructure(node.children) : '';
+      return `
+        <div class="law-hierarchy-header section">${node.title}</div>
+        ${childrenHtml}
+      `;
+    } else if (node.type === 'article') {
+      return renderArticle(node);
+    }
+    return '';
+  }).join('');
+}
+
+function renderArticle(article) {
+  const articleId = `art-${article.num}`;
+  const paragraphsHtml = article.paragraphs ? renderParagraphs(article.paragraphs, articleId) : '';
+  
+  return `
+    <div class="ls law-article" id="${articleId}">
+      <div class="lt">
+        <span class="ln">제${article.num}조</span>
+        ${article.title || ''}
+      </div>
+      <div class="lbody">
+        ${article.content ? `<div class="art-main-content">${article.content}</div>` : ''}
+        ${paragraphsHtml}
+      </div>
+    </div>
+  `;
+}
+
+function renderParagraphs(paragraphs, articleId) {
+  if (!Array.isArray(paragraphs)) return '';
+  
+  return paragraphs.map((para, index) => {
+    const paraId = `${articleId}-p${index}`;
+    const itemsHtml = para.items ? renderItems(para.items) : '';
+    
     return `
-      <div class="lp-para law-para-box" id="${pId}">
-        <span class="p-num">${p.num}</span> ${p.content}
-        ${p.items ? renderLawItems(p.items) : ""}
+      <div class="law-paragraph" id="${paraId}">
+        <span class="art-num-point">${para.num}</span>${para.content}
+        ${itemsHtml}
       </div>
     `;
   }).join('');
 }
 
-// 💡 [함수 3] 본문의 '호(1.)' 및 '목(가.)' 렌더링
-function renderLawItems(items) {
-  return `<div class="li-wrap">` + items.map(i => `
-    <div class="li-item">
-      <span class="i-num">${i.num}.</span> ${i.content}
-      ${i.sub_items ? renderLawSubItems(i.sub_items) : ""}
-    </div>
-  `).join('') + `</div>`;
-}
-
-function renderLawSubItems(subs) {
-  return `<div class="ls-wrap">` + subs.map(s => `
-    <div class="ls-sub"><span class="s-num">${s.num}.</span> ${s.content}</div>
-  `).join('') + `</div>`;
-}
-
-// 💡 [수정] 좌측 계층형 목차 생성 (항 표시 로직 제거)
-function renderLeftPanel(type, d) {
-  const el = document.getElementById('panelLeft');
+function renderItems(items) {
+  if (!Array.isArray(items)) return '';
   
-  if (type !== 'law') {
-    // 1. 사건번호 기반 재판 유형 분석 (아까 만든 로직)
-    const config = getCaseConfig(d.caseNum || ""); 
-    
-    let html = `
-      <div class="pst">정보</div>
-      <div class="case-type-badge ${config.class}">${config.name}</div>
-      <div class="toc-info"><span class="ml">사건</span>${d.caseNum || ''}</div>
-      <div class="toc-info"><span class="ml">법원</span>${d.court || ''}</div>
-      <div class="toc-info"><span class="ml">선고일</span>${formatDate(d.date)}</div>
-      
-      <div class="tdivider"></div>
-      <div class="pst">관계인</div>`;
-      
-    // 2. 재판 종류별 당사자 라벨 동적 생성
-    config.labels.forEach(label => {
-      html += `<div class="toc-info"><span class="ml">${label}</span>데이터 필요</div>`;
+  const itemsHtml = items.map(item => {
+    const subItemsHtml = item.sub_items ? renderSubItems(item.sub_items) : '';
+    return `
+      <div class="law-item">
+        <span class="art-num-point">${item.num}.</span>${item.content}
+        ${subItemsHtml}
+      </div>
+    `;
+  }).join('');
+  
+  return `<div style="margin-top:10px;">${itemsHtml}</div>`;
+}
+
+function renderSubItems(subItems) {
+  if (!Array.isArray(subItems)) return '';
+  
+  const subItemsHtml = subItems.map(sub => 
+    `<div class="law-sub-item"><span class="art-num-point">${sub.num}.</span>${sub.content}</div>`
+  ).join('');
+  
+  return `<div style="margin-left:20px;margin-top:8px;">${subItemsHtml}</div>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// 텍스트 포매팅 및 하이라이팅
+// ════════════════════════════════════════════════════════════════
+function formatText(text) {
+  return text.replace(/\n/g, '<br>');
+}
+
+function highlightLawReferences(text) {
+  // 법령명 패턴: "법령명 제N조" 형식을 찾아 클릭 가능하게 만듦
+  return text.replace(/([가-힣]+법|[가-힣]+령)\s*제(\d+)조/g, (match, lawName, articleNum) => {
+    return `<span class="law-ref" onclick="openLawModal('${lawName} 제${articleNum}조')">${match}</span>`;
+  });
+}
+
+function highlightTermsInText(text) {
+  if (!state.termDB || Object.keys(state.termDB).length === 0) {
+    return formatText(text);
+  }
+  
+  let result = text;
+  Object.keys(state.termDB).forEach(term => {
+    const regex = new RegExp(`(${escapeRegex(term)})`, 'g');
+    result = result.replace(regex, `<span class="term" data-term="$1">$1</span>`);
+  });
+  
+  return formatText(result);
+}
+
+function escapeRegex(string) {
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function attachTermClickHandlers() {
+  document.querySelectorAll('.term').forEach(element => {
+    element.addEventListener('click', function() {
+      const term = this.getAttribute('data-term');
+      showTermDefinition(term);
     });
+  });
+}
 
-    html += `
-      <div class="tdivider"></div>
-      <div class="pst">섹션</div>
-      <div class="toc active" onclick="scrollToId('case-top', this)">판례 개요</div>`;
-
-    // 3. 본문에서 【 】 패턴을 찾아 섹션 목차 자동 생성
-    if (d.fullText) {
-      const sections = d.fullText.match(/【(.*?)】/g);
-      if (sections) {
-        sections.forEach((title, idx) => {
-          const cleanTitle = title.replace(/[【】]/g, '');
-          // 본문 렌더링 시 id="section-${idx}"가 부여되어 있어야 함
-          html += `<div class="toc toc-case-section" onclick="scrollToSectionId('section-${idx}', this)">${cleanTitle}</div>`;
-        });
-      }
-    }
-
-    el.innerHTML = html;
+// ════════════════════════════════════════════════════════════════
+// 용어 해설 기능
+// ════════════════════════════════════════════════════════════════
+function showTermDefinition(term) {
+  const termData = state.termDB[term];
+  const detailElement = document.getElementById('termDetail');
+  const hintElement = document.getElementById('termHint');
+  
+  if (!termData) {
+    detailElement.innerHTML = '';
+    hintElement.style.display = 'block';
     return;
   }
-
-  // --- 기존 법령(law) 로직 (그대로 유지) ---
-  let html = `<div class="pst">법령 목차</div>`;
-  const buildTocHtml = (nodes) => {
-    let res = "";
-    nodes.forEach(node => {
-      if (node.type === 'part' || node.type === 'chapter' || node.type === 'section') {
-        const cls = `toc-${node.type}`;
-        res += `<div class="toc ${cls}">${node.title}</div>`;
-        if (node.children) res += buildTocHtml(node.children);
-      } 
-      else if (node.type === 'article') {
-        const id = `art-${node.num}`;
-        res += `<div class="toc toc-art" id="toc-${id}" onclick="scrollToArt('${id}', this)">제${node.num}조 ${node.title || ''}</div>`;
-      }
-    });
-    return res;
-  };
-  el.innerHTML = html + buildTocHtml(d.contents || []);
+  
+  hintElement.style.display = 'none';
+  detailElement.innerHTML = `
+    <div class="tcrd selected">
+      <div class="tw">${term}</div>
+      ${termData.hanja ? `<div class="th">${termData.hanja}</div>` : ''}
+      <div class="td">${termData.def || ''}</div>
+      ${termData.law ? `<div class="tl2">근거: ${termData.law}</div>` : ''}
+    </div>
+  `;
+  
+  // 우측 패널이 닫혀있으면 열기
+  showTab('terms');
 }
 
-// 헬퍼: 이동 시 active 클래스 관리
-function scrollToSectionId(id, el) {
-  const target = document.getElementById(id);
-  if (target) {
-    target.scrollIntoView({ behavior: 'smooth' });
-    // 모든 toc에서 active 제거 후 클릭한 것에 추가
-    document.querySelectorAll('.toc').forEach(t => t.classList.remove('active'));
-    el.classList.add('active');
+function extractAndDisplayTerms(text) {
+  const foundTerms = new Set();
+  
+  Object.keys(state.termDB).forEach(term => {
+    if (text.includes(term)) {
+      foundTerms.add(term);
+    }
+  });
+  
+  const autoTermsElement = document.getElementById('autoTerms');
+  if (!autoTermsElement) return;
+  
+  if (foundTerms.size === 0) {
+    autoTermsElement.innerHTML = '<div class="hint-text">이 문서에서 등록된 용어를 찾지 못했습니다.</div>';
+    return;
+  }
+  
+  const html = Array.from(foundTerms).map(term => 
+    `<div class="tcrd" onclick="showTermDefinition('${term}')">
+      <div class="tw ellipsis">${term}</div>
+      <div class="td ellipsis">${truncateText(state.termDB[term].def || '', 40)}</div>
+    </div>`
+  ).join('');
+  
+  autoTermsElement.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════════════
+// 연계 판례 로드
+// ════════════════════════════════════════════════════════════════
+async function loadRelatedCases(caseData) {
+  const relatedElement = document.getElementById('relatedContent');
+  if (!relatedElement) return;
+  
+  relatedElement.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  
+  try {
+    // 판례번호에서 키워드 추출하여 관련 판례 검색
+    const keyword = extractKeywordFromCaseNum(caseData.caseNum);
+    const results = await API.searchPrecedent(keyword, { display: 10 });
+    
+    if (!results.items || results.items.length === 0) {
+      relatedElement.innerHTML = '<div class="hint">연계 판례를 찾지 못했습니다.</div>';
+      return;
+    }
+    
+    const html = results.items
+      .filter(item => item.id !== state.currentDetail.id) // 현재 판례 제외
+      .slice(0, 5)
+      .map(item => `
+        <div class="rcrd" onclick="window.goDetail('case', '${item.id}')">
+          <div class="rtype">${item.court || ''}</div>
+          <div class="rnum">${item.caseNum || ''}</div>
+          <div class="rdate">${item.date || ''}</div>
+        </div>
+      `).join('');
+    
+    relatedElement.innerHTML = html || '<div class="hint">연계 판례를 찾지 못했습니다.</div>';
+  } catch (error) {
+    relatedElement.innerHTML = `<div class="hint-text error">오류: ${error.message}</div>`;
   }
 }
 
-  let html = `<div class="pst">법령 목차</div>`;
-  
-  const buildTocHtml = (nodes) => {
-    let res = "";
-    nodes.forEach(node => {
-      if (node.type === 'part' || node.type === 'chapter' || node.type === 'section') {
-        const cls = `toc-${node.type}`;
-        res += `<div class="toc ${cls}">${node.title}</div>`;
-        if (node.children) res += buildTocHtml(node.children);
-      } 
-      else if (node.type === 'article') {
-        const id = `art-${node.num}`;
-        // 💡 조문 목차만 생성 (항 반복 로직 삭제됨)
-        res += `<div class="toc toc-art" id="toc-${id}" onclick="scrollToArt('${id}', this)">제${node.num}조 ${node.title || ''}</div>`;
-      }
-    });
-    return res;
+function extractKeywordFromCaseNum(caseNum) {
+  // 사건번호에서 연도와 사건 유형 제거하여 핵심 키워드만 추출
+  if (!caseNum) return '';
+  return caseNum.replace(/\d+/g, '').replace(/[도나다두헌]/g, '').trim();
+}
+
+// ════════════════════════════════════════════════════════════════
+// 사건 유형 판단
+// ════════════════════════════════════════════════════════════════
+function getCaseTypeConfig(caseNum) {
+  const defaultConfig = { 
+    name: '일반재판', 
+    class: 'default', 
+    labels: ['당사자', '상대방'] 
   };
-
-  el.innerHTML = html + buildTocHtml(d.contents || []);
-
-
-let viewSettings = { terms: true, highlights: true };
-
-window.toggleViewLayer = (type) => {
-  const bodyEl = document.getElementById('caseBody');
-  if (!bodyEl) return;
-
-  viewSettings[type] = !viewSettings[type];
-  const isActive = viewSettings[type];
   
-  const btn = document.getElementById(type === 'terms' ? 'btnTermToggle' : 'btnHighlightToggle');
-  const label = type === 'terms' ? '용어 밑줄' : '형광펜';
-  const className = type === 'terms' ? 'hide-terms' : 'hide-highlights';
-
-  if (isActive) {
-    bodyEl.classList.remove(className);
-    btn.classList.add('active');
-    btn.textContent = `${label}: 켬`;
-  } else {
-    bodyEl.classList.add(className);
-    btn.classList.remove('active');
-    btn.textContent = `${label}: 끔`;
+  if (!caseNum) return defaultConfig;
+  
+  if (caseNum.includes('헌')) {
+    return { name: '헌법재판', class: 'const', labels: ['청구인', '이해관계인'] };
   }
-};
+  
+  if (/[푸로오]/.test(caseNum)) {
+    return { name: '소년보호', class: 'juvenile', labels: ['소년', '보호자'] };
+  }
+  
+  if (/[드르느]/.test(caseNum)) {
+    return { name: '가사재판', class: 'family', labels: ['원고/청구인', '피고/상대방'] };
+  }
+  
+  const caseTypeMap = {
+    '도': { name: '형사재판', class: 'criminal', labels: ['피고인', '검사'] },
+    '나': { name: '민사재판', class: 'civil', labels: ['원고', '피고'] },
+    '다': { name: '민사재판', class: 'civil', labels: ['원고', '피고'] },
+    '두': { name: '행정재판', class: 'admin', labels: ['원고', '피고(행정청)'] }
+  };
+  
+  const code = caseNum.replace(/[0-9]/g, '').trim();
+  return caseTypeMap[code] || defaultConfig;
+}
 
-// 탭 전환 및 용어해설 패널 표시 함수 (수정본)
+// ════════════════════════════════════════════════════════════════
+// 우측 패널 탭 전환
+// ════════════════════════════════════════════════════════════════
 window.showTab = (tabName) => {
-  // 1. 모든 콘텐츠 패널(.pc) 숨기기
-  const contents = document.querySelectorAll('.pc');
-  contents.forEach(c => { c.style.display = 'none'; });
-
-  // 2. 모든 탭 버튼(.ptab) 비활성화
-  const tabs = document.querySelectorAll('.ptab');
-  tabs.forEach(t => { t.classList.remove('active'); });
-
-  // 3. ★ 핵심: pc-terms, pc-related 형식을 사용합니다.
-  const targetContent = document.getElementById('pc-' + tabName);
+  // 모든 콘텐츠 숨기기
+  document.querySelectorAll('.pc').forEach(panel => {
+    panel.style.display = 'none';
+  });
+  
+  // 모든 탭 버튼 비활성화
+  document.querySelectorAll('.ptab').forEach(tab => {
+    tab.classList.remove('active');
+  });
+  
+  // 선택된 콘텐츠 표시
+  const targetContent = document.getElementById(`pc-${tabName}`);
   if (targetContent) {
     targetContent.style.display = 'block';
   }
-
-  // 4. 클릭된 버튼 활성화
-  const targetBtn = document.getElementById('pt-' + tabName); // pt-terms 등
-  if (targetBtn) {
-    targetBtn.classList.add('active');
+  
+  // 선택된 탭 버튼 활성화
+  const targetButton = document.getElementById(`pt-${tabName}`);
+  if (targetButton) {
+    targetButton.classList.add('active');
   }
 };
 
-// [두뇌 역할] 사건번호를 보고 재판 유형을 판단함
-function getCaseConfig(caseNum) {
-    if (caseNum.includes('헌')) return { name: '헌법재판', class: 'const', labels: ['청구인', '이해관계인'] };
-    if (/[푸로오]/.test(caseNum)) return { name: '소년보호', class: 'juvenile', labels: ['소년', '보호자'] };
-    if (/[드르느]/.test(caseNum)) return { name: '가사재판', class: 'family', labels: ['원고/청구인', '피고/상대방'] };
+// ════════════════════════════════════════════════════════════════
+// 뷰어 설정 토글
+// ════════════════════════════════════════════════════════════════
+window.toggleViewLayer = (layerType) => {
+  const bodyElement = document.getElementById('caseBody');
+  if (!bodyElement) return;
+  
+  state.viewSettings[layerType] = !state.viewSettings[layerType];
+  const isActive = state.viewSettings[layerType];
+  
+  const buttonId = layerType === 'terms' ? 'btnTermToggle' : 'btnHighlightToggle';
+  const button = document.getElementById(buttonId);
+  const label = layerType === 'terms' ? '용어 밑줄' : '형광펜';
+  const className = layerType === 'terms' ? 'hide-terms' : 'hide-highlights';
+  
+  if (isActive) {
+    bodyElement.classList.remove(className);
+    button?.classList.add('active');
+    if (button) button.textContent = `${label}: 켬`;
+  } else {
+    bodyElement.classList.add(className);
+    button?.classList.remove('active');
+    if (button) button.textContent = `${label}: 끔`;
+  }
+};
+
+// ════════════════════════════════════════════════════════════════
+// 본문 내 검색
+// ════════════════════════════════════════════════════════════════
+window.doInlineSearch = () => {
+  const query = document.getElementById('iSrch')?.value.trim();
+  const bodyElement = document.getElementById('caseBody');
+  
+  if (!query || !bodyElement) {
+    clearInlineSearchHighlights();
+    state.inlineSearch.matches = [];
+    state.inlineSearch.currentIndex = 0;
+    updateSearchCounter();
+    return;
+  }
+  
+  if (query === state.inlineSearch.lastQuery) return;
+  
+  state.inlineSearch.lastQuery = query;
+  clearInlineSearchHighlights();
+  
+  const textContent = bodyElement.textContent || '';
+  const regex = new RegExp(escapeRegex(query), 'gi');
+  const matches = [];
+  let match;
+  
+  while ((match = regex.exec(textContent)) !== null) {
+    matches.push(match.index);
+  }
+  
+  state.inlineSearch.matches = matches;
+  state.inlineSearch.currentIndex = 0;
+  
+  if (matches.length > 0) {
+    highlightInlineSearchMatches(bodyElement, query);
+    scrollToMatch(0);
+  }
+  
+  updateSearchCounter();
+};
+
+function highlightInlineSearchMatches(container, query) {
+  const walker = document.createTreeWalker(
+    container,
+    NodeFilter.SHOW_TEXT,
+    null,
+    false
+  );
+  
+  const textNodes = [];
+  let node;
+  while (node = walker.nextNode()) {
+    textNodes.push(node);
+  }
+  
+  const regex = new RegExp(`(${escapeRegex(query)})`, 'gi');
+  
+  textNodes.forEach(textNode => {
+    if (!textNode.nodeValue.match(regex)) return;
     
-    const code = caseNum.replace(/[0-9]/g, '').trim();
-    const map = {
-        '도': { name: '형사재판', class: 'criminal', labels: ['피고인', '검사'] },
-        '나': { name: '민사재판', class: 'civil', labels: ['원고', '피고'] },
-        '다': { name: '민사재판', class: 'civil', labels: ['원고', '피고'] },
-        '두': { name: '행정재판', class: 'admin', labels: ['원고', '피고(행정청)'] }
-    };
-    return map[code] || { name: '일반재판', class: 'default', labels: ['당사자', '상대방'] };
+    const span = document.createElement('span');
+    span.innerHTML = textNode.nodeValue.replace(regex, '<mark class="sh">$1</mark>');
+    textNode.parentNode.replaceChild(span, textNode);
+  });
 }
 
-// [출력 역할] 사이드바 목록을 실제로 그려줌
-function updateSidebar(caseData) {
-    const tocList = document.getElementById('tocList'); // HTML에 있는 ID 확인!
-    const config = getCaseConfig(caseData.caseNum);
-    
-    let html = '';
-    // 1. 당사자 라벨 (동적)
-    html += `<li class="toc-group">${config.name} 정보</li>`;
-    config.labels.forEach(label => {
-        html += `<li class="toc-item static">${label}</li>`;
-    });
+function clearInlineSearchHighlights() {
+  document.querySelectorAll('.sh').forEach(mark => {
+    const text = mark.textContent;
+    mark.replaceWith(text);
+  });
+}
 
-    // 2. 본문 목차 파싱 (【 】 추출)
-    html += `<li class="toc-group">목차</li>`;
-    const matches = caseData.fullText.match(/【(.*?)】/g);
-    if (matches) {
-        matches.forEach((match, idx) => {
-            const title = match.replace(/[【】]/g, '');
-            html += `<li class="toc-item" onclick="document.getElementById('section-${idx}').scrollIntoView({behavior:'smooth'})">${title}</li>`;
-        });
+function scrollToMatch(index) {
+  const marks = document.querySelectorAll('.sh');
+  if (index < 0 || index >= marks.length) return;
+  
+  // 이전 활성화 제거
+  marks.forEach(mark => mark.classList.remove('cur'));
+  
+  // 현재 항목 활성화 및 스크롤
+  const currentMark = marks[index];
+  currentMark.classList.add('cur');
+  currentMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function updateSearchCounter() {
+  const counterElement = document.getElementById('iCnt');
+  if (!counterElement) return;
+  
+  const total = state.inlineSearch.matches.length;
+  const current = total > 0 ? state.inlineSearch.currentIndex + 1 : 0;
+  
+  counterElement.textContent = total > 0 ? `${current}/${total}` : '';
+}
+
+window.nextMatch = () => {
+  if (state.inlineSearch.matches.length === 0) return;
+  
+  state.inlineSearch.currentIndex = 
+    (state.inlineSearch.currentIndex + 1) % state.inlineSearch.matches.length;
+  scrollToMatch(state.inlineSearch.currentIndex);
+  updateSearchCounter();
+};
+
+window.prevMatch = () => {
+  if (state.inlineSearch.matches.length === 0) return;
+  
+  state.inlineSearch.currentIndex = 
+    (state.inlineSearch.currentIndex - 1 + state.inlineSearch.matches.length) % 
+    state.inlineSearch.matches.length;
+  scrollToMatch(state.inlineSearch.currentIndex);
+  updateSearchCounter();
+};
+
+// ════════════════════════════════════════════════════════════════
+// 하이라이트 기능
+// ════════════════════════════════════════════════════════════════
+window.applyHighlight = () => {
+  const selection = window.getSelection();
+  if (!selection.rangeCount) return;
+  
+  const range = selection.getRangeAt(0);
+  const selectedText = range.toString().trim();
+  
+  if (!selectedText) return;
+  
+  const span = document.createElement('span');
+  span.className = 'uhl';
+  span.textContent = selectedText;
+  
+  range.deleteContents();
+  range.insertNode(span);
+  
+  selection.removeAllRanges();
+};
+
+window.clearHighlights = () => {
+  document.querySelectorAll('.uhl').forEach(highlight => {
+    const text = highlight.textContent;
+    highlight.replaceWith(text);
+  });
+};
+
+// ════════════════════════════════════════════════════════════════
+// 폰트 크기 조절
+// ════════════════════════════════════════════════════════════════
+window.setFontSize = (size) => {
+  const bodyElement = document.getElementById('caseBody');
+  if (bodyElement) {
+    bodyElement.style.fontSize = `${size}px`;
+  }
+};
+
+// ════════════════════════════════════════════════════════════════
+// 읽기 진행도 표시
+// ════════════════════════════════════════════════════════════════
+window.updateProgress = () => {
+  const panelCenter = document.getElementById('panelCenter');
+  const progressBar = document.getElementById('readingProgress');
+  
+  if (!panelCenter || !progressBar) return;
+  
+  const scrollTop = panelCenter.scrollTop;
+  const scrollHeight = panelCenter.scrollHeight - panelCenter.clientHeight;
+  const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+  
+  progressBar.style.width = `${progress}%`;
+};
+
+// ════════════════════════════════════════════════════════════════
+// 카드 렌더링 헬퍼 함수들 (CSS 클래스 맞춤)
+// ════════════════════════════════════════════════════════════════
+function caseCard(caseItem, onclickHandler) {
+  return `
+    <div class="ri" onclick="${onclickHandler}">
+      <div class="rc">판례</div>
+      <div class="rt">${caseItem.caseNum || ''}</div>
+      <div class="rtags">
+        <span class="ts">${caseItem.court || ''}</span>
+        <span class="ts">${caseItem.date || ''}</span>
+      </div>
+    </div>
+  `;
+}
+
+function caseCardBig(caseItem) {
+  return `
+    <div class="bri" onclick="window.goDetail('case', '${caseItem.id}')">
+      <div>
+        <div class="bri-court">${caseItem.court || ''}</div>
+        <div class="bri-title">${caseItem.caseNum || ''}</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+          ${truncateText(caseItem.summary || '', 100)}
+        </div>
+      </div>
+      <div>
+        <span class="badge badge-c">${caseItem.date || ''}</span>
+      </div>
+    </div>
+  `;
+}
+
+function lawCard(lawItem, onclickHandler) {
+  return `
+    <div class="ri law-ri" onclick="${onclickHandler}">
+      <div class="rc">법령</div>
+      <div class="rt">${lawItem.name || ''}</div>
+      <div class="rtags">
+        <span class="ts tlaw">${lawItem.category || ''}</span>
+      </div>
+    </div>
+  `;
+}
+
+function lawCardBig(lawItem) {
+  return `
+    <div class="bri" onclick="window.goDetail('law', '${lawItem.mst}')">
+      <div>
+        <div class="bri-court">${lawItem.category || ''}</div>
+        <div class="bri-title">${lawItem.name || ''}</div>
+      </div>
+      <div>
+        <span class="badge badge-l">${lawItem.date || ''}</span>
+      </div>
+    </div>
+  `;
+}
+
+function truncateText(text, maxLength) {
+  if (!text) return '';
+  return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+}
+
+// ════════════════════════════════════════════════════════════════
+// 법령 모달 (서버 API 우선, 실패시 클라이언트 검색)
+// ════════════════════════════════════════════════════════════════
+window.openLawModal = async (lawReference) => {
+  const modal = document.getElementById('lawModal');
+  const titleElement = document.getElementById('lmTitle');
+  const bodyElement = document.getElementById('lmBody');
+  const goButton = document.getElementById('lmGoBtn');
+  
+  if (!modal) return;
+  
+  modal.classList.add('show');
+  titleElement.textContent = lawReference;
+  bodyElement.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+  
+  try {
+    // 먼저 서버 API 시도
+    let articleData = await API.getLawArticleByName(lawReference);
+    let lawMst = null;
+    
+    // 서버 API 실패시 클라이언트 검색
+    if (!articleData) {
+      console.log('서버 API 실패, 클라이언트 검색 시작...');
+      
+      // 법령명과 조문 번호 파싱
+      const matched = lawReference.match(/^(.+?)\s+제(\d+)조/);
+      if (!matched) {
+        bodyElement.innerHTML = '<div class="hint-text">법령명 형식이 올바르지 않습니다.</div>';
+        return;
+      }
+      
+      const [, lawName, articleNum] = matched;
+      
+      // 법령 검색
+      const searchResult = await API.searchLaw(lawName, { display: 1 });
+      if (!searchResult.items?.length) {
+        bodyElement.innerHTML = `<div class="hint-text">"${lawName}" 법령을 찾을 수 없습니다.</div>`;
+        return;
+      }
+      
+      lawMst = searchResult.items[0].mst;
+      
+      // 법령 전체 데이터 가져오기
+      const lawData = await API.getLawDetail(lawMst);
+      if (!lawData) {
+        bodyElement.innerHTML = '<div class="hint-text">법령 데이터를 불러올 수 없습니다.</div>';
+        return;
+      }
+      
+      // 조문 찾기 (재귀적으로 contents 탐색)
+      const article = findArticleInContents(lawData.contents, articleNum);
+      
+      if (!article) {
+        bodyElement.innerHTML = `<div class="hint-text">제${articleNum}조를 찾을 수 없습니다.</div>`;
+        return;
+      }
+      
+      // 클라이언트 검색 결과를 서버 API 형식으로 변환
+      articleData = {
+        mst: lawMst,
+        num: article.num,
+        title: article.title,
+        content: article.content,
+        paragraphs: article.paragraphs
+      };
     }
-    tocList.innerHTML = html;
+    
+    // 조문 내용 렌더링
+    let articleHtml = `<div class="modal-article-title">제${articleData.num || '?'}조 ${articleData.title || ''}</div>`;
+    
+    if (articleData.content) {
+      articleHtml += `<div class="modal-article-content">${formatText(articleData.content)}</div>`;
+    }
+    
+    if (articleData.paragraphs && articleData.paragraphs.length > 0) {
+      articleData.paragraphs.forEach(para => {
+        articleHtml += `<div class="modal-article-para"><span class="modal-para-num">${para.num}</span> ${para.content}</div>`;
+        
+        if (para.items) {
+          para.items.forEach(item => {
+            articleHtml += `<div class="modal-article-item"><span class="modal-item-num">${item.num}.</span> ${item.content}</div>`;
+          });
+        }
+      });
+    }
+    
+    bodyElement.innerHTML = articleHtml;
+    
+    // 전체 법령으로 이동 버튼
+    const finalMst = articleData.mst || lawMst;
+    goButton.onclick = () => {
+      modal.classList.remove('show');
+      if (finalMst) {
+        window.goDetail('law', finalMst);
+      }
+    };
+  } catch (error) {
+    bodyElement.innerHTML = `<div class="hint-text error">오류: ${error.message}</div>`;
+  }
+};
+
+// 재귀적으로 조문 찾기 (클라이언트 폴백용)
+function findArticleInContents(contents, articleNum) {
+  if (!Array.isArray(contents)) return null;
+  
+  for (const node of contents) {
+    if (node.type === 'article' && node.num === articleNum) {
+      return node;
+    }
+    
+    if (node.children) {
+      const found = findArticleInContents(node.children, articleNum);
+      if (found) return found;
+    }
+  }
+  
+  return null;
 }
 
-// 본문 렌더링 예시
-let idx = 0;
-const formattedFullText = caseData.fullText.replace(/【(.*?)】/g, (match) => {
-    return `<h3 id="section-${idx++}" class="content-header">${match}</h3>`;
-});
-document.getElementById('caseContent').innerHTML = formattedFullText.replace(/\n/g, '<br>');
+window.closeLawModal = (event) => {
+  if (event.target.id === 'lawModal') {
+    event.target.classList.remove('show');
+  }
+};
+
+// ════════════════════════════════════════════════════════════════
+// 용어 편집 모달
+// ════════════════════════════════════════════════════════════════
+window.openTermEdit = () => {
+  const modal = document.getElementById('termEditModal');
+  if (!modal) return;
+  
+  modal.classList.add('show');
+  renderTermList();
+};
+
+window.closeTermEdit = (event) => {
+  if (event.target.id === 'termEditModal') {
+    event.target.classList.remove('show');
+  }
+};
+
+function renderTermList() {
+  const listElement = document.getElementById('termList');
+  const countElement = document.getElementById('termCount');
+  
+  if (!listElement) return;
+  
+  const terms = Object.keys(state.termDB);
+  countElement.textContent = `(${terms.length}개)`;
+  
+  if (terms.length === 0) {
+    listElement.innerHTML = '<div class="hint-text">등록된 용어가 없습니다.</div>';
+    return;
+  }
+  
+  const html = terms.map(word => {
+    const data = state.termDB[word];
+    return `
+      <div class="term-list-item">
+        <div class="term-list-word">${word}</div>
+        <div class="term-list-def">${truncateText(data.def || '', 50)}</div>
+        <button class="term-delete-btn" onclick="deleteTerm('${word}')">×</button>
+      </div>
+    `;
+  }).join('');
+  
+  listElement.innerHTML = html;
+}
+
+window.submitAddTerm = async () => {
+  const word = document.getElementById('nWord')?.value.trim();
+  const hanja = document.getElementById('nHanja')?.value.trim();
+  const def = document.getElementById('nDef')?.value.trim();
+  const law = document.getElementById('nLaw')?.value.trim();
+  
+  if (!word || !def) {
+    alert('용어와 정의는 필수 입력 항목입니다.');
+    return;
+  }
+  
+  try {
+    await API.addTerm({ word, hanja, def, law });
+    
+    // 로컬 상태 업데이트
+    state.termDB[word] = { hanja, def, law };
+    
+    // UI 초기화
+    document.getElementById('nWord').value = '';
+    document.getElementById('nHanja').value = '';
+    document.getElementById('nDef').value = '';
+    document.getElementById('nLaw').value = '';
+    
+    renderTermList();
+    
+    alert('용어가 추가되었습니다.');
+  } catch (error) {
+    alert(`오류: ${error.message}`);
+  }
+};
+
+window.deleteTerm = async (word) => {
+  if (!confirm(`'${word}' 용어를 삭제하시겠습니까?`)) return;
+  
+  try {
+    await API.deleteTerm(word);
+    
+    // 로컬 상태 업데이트
+    delete state.termDB[word];
+    
+    renderTermList();
+    
+    alert('용어가 삭제되었습니다.');
+  } catch (error) {
+    alert(`오류: ${error.message}`);
+  }
+};

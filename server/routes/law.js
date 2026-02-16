@@ -1,179 +1,280 @@
+// routes/law.js - 국가법령정보 API 전용 (수정완료)
 const express = require('express');
-const router  = express.Router();
-const fs      = require('fs');
-const path    = require('path');
+const router = express.Router();
+const lawApi = require('../lawApi');
 
-const LAWS_FILE = path.join(__dirname, '../../data/laws.json');
-
-function readLocalLaws() {
-  try { return JSON.parse(fs.readFileSync(LAWS_FILE, 'utf8')); }
-  catch { return []; }
-}
-function apiAvailable() {
-  const oc = process.env.LAW_API_OC;
-  return !!(oc && oc !== 'your_oc_id_here' && oc.trim() !== '여기에_발급받은_OC_아이디_입력');
-}
-
-// 💡 헬퍼 함수: 계층형 구조(contents)에서 조문을 재귀적으로 찾는 함수
-function findArticleInContents(contents, joNum) {
-  if (!contents) return null;
-  for (const node of contents) {
-    if (node.type === 'article' && String(node.num) === String(joNum)) {
-      return node;
-    }
-    if (node.children) {
-      const found = findArticleInContents(node.children, joNum);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-// 💡 헬퍼 함수: 계층형 구조 내에 검색어가 포함되어 있는지 확인
-function checkKeywordInContents(contents, ql) {
-  if (!contents) return false;
-  return contents.some(node => {
-    const match = (node.title || '').toLowerCase().includes(ql) || (node.content || '').toLowerCase().includes(ql);
-    if (match) return true;
-    if (node.children) return checkKeywordInContents(node.children, ql);
-    return false;
-  });
-}
-
+// =================================================================
 // 1. 법령 검색
+// =================================================================
 router.get('/search', async (req, res) => {
-  const { query = '', display = 20 } = req.query;
-  const local = readLocalLaws();
-  const ql = query.toLowerCase().trim();
-
-  const results = local.filter(l => {
-    if (!ql) return true;
-    const nameMatch = l.name.toLowerCase().includes(ql) || (l.department || '').includes(ql);
+  try {
+    const { query = '', page = 1, display = 20, sort = 'lasc' } = req.query;
     
-    // 💡 옛날 구조(articles)와 새 구조(contents) 모두 안전하게 검사
-    const artMatch = l.articles && Array.isArray(l.articles) 
-                     ? l.articles.some(a => (a.title || '').includes(ql) || (a.content || '').includes(ql))
-                     : false;
-    const contMatch = checkKeywordInContents(l.contents, ql);
-
-    return nameMatch || artMatch || contMatch;
-  });
-
-  if (apiAvailable() && ql) {
-    try {
-      const { searchLaw } = require('../lawApi');
-      const apiData = await searchLaw({ query, page: 1, display: +display });
-      const root = apiData?.LawSearch;
-      const apiItems = root?.law
-        ? (Array.isArray(root.law) ? root.law : [root.law]).map(l => ({
-            mst: l.법령MST, name: l.법령명한글, type: l.법령구분명,
-            department: l.소관부처명, promulgDate: l.공포일자,
-            enforcDate: l.시행일자, source: 'api',
-          }))
-        : [];
-      const merged = [
-        ...results.map(l => ({...l, source:'local'})),
-        ...apiItems.filter(a => !results.some(ll => ll.name === a.name)),
-      ];
-      return res.json({ total: merged.length, items: merged });
-    } catch(e) { console.warn('[API 실패, 로컬만 사용]', e.message); }
+    const apiData = await lawApi.searchLaw({ 
+      query, 
+      page: parseInt(page), 
+      display: parseInt(display),
+      sort 
+    });
+    
+    const root = apiData?.LawSearch || apiData?.법령검색 || apiData;
+    
+    if (!root || !root.law) {
+      return res.json({ total: 0, items: [] });
+    }
+    
+    const lawArray = Array.isArray(root.law) ? root.law : [root.law];
+    
+    // [수정 3] 법령명, MST 등 필드 매핑 정확화
+    const items = lawArray.map(law => ({
+      mst: law.법령일련번호 || law.법령MST || law.MST || '',
+      name: law.법령명한글 || law.법령명 || '',
+      type: law.법령구분명 || '',
+      department: law.소관부처명 || '',
+      promulgDate: law.공포일자 || '',
+      enforcDate: law.시행일자 || '',
+      category: law.법령구분명 || '기타', // '법률', '대통령령' 등 표시
+      date: formatDate(law.시행일자 || law.공포일자)
+    }));
+    
+    res.json({
+      total: parseInt(root.totalCnt) || items.length,
+      page: parseInt(page),
+      display: parseInt(display),
+      items
+    });
+    
+  } catch (error) {
+    console.error('[법령 검색 오류]', error.message);
+    res.status(500).json({ error: '법령 검색 실패', message: error.message });
   }
-
-  res.json({ total: results.length, items: results.map(l => ({...l, source:'local'})) });
 });
 
-// 2. 법령 본문
+// =================================================================
+// 2. 법령 상세 조회
+// =================================================================
 router.get('/detail/:mst', async (req, res) => {
-  const mst = req.params.mst;
-  const local = readLocalLaws();
-  const found = local.find(l => l.mst === mst || l.name === mst);
-  if (found) return res.json({...found, source:'local'});
+  try {
+    const { mst } = req.params;
+    const apiData = await lawApi.getLawDetail(mst);
+    
+    // API 응답 구조 확인 (법령 or Law)
+    const root = apiData?.법령 || apiData?.Law || apiData;
+    if (!root) {
+      return res.status(404).json({ error: '법령 데이터를 찾을 수 없습니다.' });
+    }
+    
+    const basicInfo = root.기본정보 || {};
 
-  if (apiAvailable()) {
-    try {
-      const { getLawDetail } = require('../lawApi');
-      const raw  = await getLawDetail(mst);
-      const root = raw?.법령;
-      if (!root) return res.status(404).json({ error: '법령을 찾을 수 없습니다.' });
-      
-      const 조문편장 = root?.조문?.조문단위;
-      const articles = [];
-      if (조문편장) {
-        const arr = Array.isArray(조문편장) ? 조문편장 : [조문편장];
-        arr.forEach(u => {
-          const 항 = u?.항 ? (Array.isArray(u.항)?u.항:[u.항]) : [];
-          articles.push({ 
-            num: u?.조문번호||'', 
-            title: u?.조문제목||'', 
-            content: u?.조문내용||'',
-            paragraphs: 항.map(h => ({ num: h?.항번호||'', content: h?.항내용||'' })) // 💡 paragraphs로 통일
-          });
+    // [수정 3] 기본 정보 매핑 강화 (화면 상단 제목 표시용)
+    const response = {
+      mst,
+      name: basicInfo.법령명한글 || basicInfo.법령명 || '제목 없음',
+      englishName: basicInfo.법령명영문 || '',
+      abbreviation: basicInfo.법령약칭명 || '',
+      type: basicInfo.법령구분명 || '',
+      department: basicInfo.소관부처명 || '',
+      promulgDate: basicInfo.공포일자 || '',
+      enforcDate: basicInfo.시행일자 || '',
+      category: basicInfo.법령구분명 || '기타',
+      // [수정 1] 새로운 파싱 로직 적용
+      contents: buildLawHierarchy(root.조문?.조문단위) 
+    };
+    
+    res.json(response);
+    
+  } catch (error) {
+    console.error('[법령 상세 오류]', error.message);
+    res.status(500).json({ error: '법령 상세 조회 실패', message: error.message });
+  }
+});
+
+// =================================================================
+// 3. 특정 조문 조회
+// =================================================================
+router.get('/article', async (req, res) => {
+  try {
+    const { mst, jo } = req.query;
+    const apiData = await lawApi.getLawArticle(mst, jo);
+    const root = apiData?.법령 || apiData;
+    
+    if (!root?.조문?.조문단위) {
+      return res.status(404).json({ error: '조문을 찾을 수 없습니다.' });
+    }
+    
+    // 조문단위가 배열일 수도 있고 객체일 수도 있음
+    const units = Array.isArray(root.조문.조문단위) ? root.조문.조문단위 : [root.조문.조문단위];
+    // 요청한 조문번호와 일치하는 것 찾기
+    const article = units.find(u => parseInt(u.조문번호) === parseInt(jo)) || units[0];
+
+    // 조문 데이터 정제
+    const cleanedArticle = parseArticleUnit(article);
+
+    res.json({
+      mst,
+      num: cleanedArticle.num,
+      title: cleanedArticle.title,
+      content: cleanedArticle.content,
+      paragraphs: cleanedArticle.paragraphs
+    });
+    
+  } catch (error) {
+    console.error('[조문 조회 오류]', error.message);
+    res.status(500).json({ error: '조문 조회 실패', message: error.message });
+  }
+});
+
+// =================================================================
+// 헬퍼 함수들 (핵심 로직)
+// =================================================================
+
+/**
+ * [수정 1] 평면적인 조문 리스트를 계층형 목차(Tree)로 변환
+ * 편/장/절 정보가 조문단위 안에 들어있는 경우를 처리
+ */
+function buildLawHierarchy(units) {
+  if (!units) return [];
+  const unitArray = Array.isArray(units) ? units : [units];
+  
+  const result = [];
+  let currentPart = null;   // 편
+  let currentChapter = null; // 장
+  let currentSection = null; // 절
+  let currentSubsection = null; // 관
+
+  unitArray.forEach(unit => {
+    // 1. 편(Part) 변경 확인
+    if (unit.편명 && (!currentPart || currentPart.title !== unit.편명)) {
+      currentPart = { type: 'part', title: unit.편명, children: [] };
+      result.push(currentPart);
+      currentChapter = null; currentSection = null; currentSubsection = null;
+    }
+
+    // 2. 장(Chapter) 변경 확인
+    if (unit.장명 && (!currentChapter || currentChapter.title !== unit.장명)) {
+      currentChapter = { type: 'chapter', title: unit.장명, children: [] };
+      // 편이 있으면 편 아래에, 없으면 최상위에 추가
+      if (currentPart) currentPart.children.push(currentChapter);
+      else result.push(currentChapter);
+      currentSection = null; currentSubsection = null;
+    }
+
+    // 3. 절(Section) 변경 확인
+    if (unit.절명 && (!currentSection || currentSection.title !== unit.절명)) {
+      currentSection = { type: 'section', title: unit.절명, children: [] };
+      if (currentChapter) currentChapter.children.push(currentSection);
+      else if (currentPart) currentPart.children.push(currentSection);
+      else result.push(currentSection);
+      currentSubsection = null;
+    }
+
+    // 4. 관(Subsection) 변경 확인 (헌법 등에서 사용)
+    if (unit.관명 && (!currentSubsection || currentSubsection.title !== unit.관명)) {
+      currentSubsection = { type: 'sub-section', title: unit.관명, children: [] };
+      if (currentSection) currentSection.children.push(currentSubsection);
+      else if (currentChapter) currentChapter.children.push(currentSubsection);
+      else result.push(currentSubsection);
+    }
+
+    // 5. 조문 추가
+    const articleNode = parseArticleUnit(unit);
+    
+    // 현재 가장 하위 컨테이너에 조문 추가
+    if (currentSubsection) currentSubsection.children.push(articleNode);
+    else if (currentSection) currentSection.children.push(articleNode);
+    else if (currentChapter) currentChapter.children.push(articleNode);
+    else if (currentPart) currentPart.children.push(articleNode);
+    else result.push(articleNode); // 아무 체계도 없는 경우
+  });
+
+  return result;
+}
+
+/**
+ * 조문 단위 하나를 깔끔하게 정제
+ */
+function parseArticleUnit(unit) {
+  // 조문 내용 정제 (번호 중복 제거)
+  const num = unit.조문번호 || '';
+  let content = unit.조문내용 || '';
+  
+  // "제1조(목적)" 같은 제목 추출
+  // API가 조문제목을 따로 주면 그걸 쓰고, 없으면 조문내용에서 파싱 시도
+  let title = unit.조문제목 || '';
+  
+  // 조문내용에서 "제1조(목적)" 텍스트 제거하고 순수 본문만 남기기
+  // (API에 따라 조문내용에 제목이 포함될 수도, 아닐 수도 있음)
+  content = cleanText(content, `제${num}조`);
+  if (title) content = cleanText(content, title);
+  content = cleanText(content, `(${title})`);
+
+  // [수정 2] 항/호 번호 중복 제거 로직 적용
+  const paragraphs = [];
+  if (unit.항) {
+    const hangArray = Array.isArray(unit.항) ? unit.항 : [unit.항];
+    hangArray.forEach(h => {
+      const pNum = h.항번호 ? h.항번호.trim() : ''; // ①
+      let pContent = h.항내용 ? h.항내용.trim() : '';
+
+      // "① ① 본문..." 처럼 번호가 내용에 포함된 경우 제거
+      if (pNum && pContent.startsWith(pNum)) {
+        pContent = pContent.substring(pNum.length).trim();
+      }
+
+      const paragraph = {
+        num: pNum,
+        content: pContent,
+        items: []
+      };
+
+      // 호 파싱
+      if (h.호) {
+        const hoArray = Array.isArray(h.호) ? h.호 : [h.호];
+        paragraph.items = hoArray.map(ho => {
+          const iNum = ho.호번호 ? ho.호번호.trim() : ''; // 1.
+          let iContent = ho.호내용 ? ho.호번호.trim() : ''; // 내용이 없는 경우 대비
+
+          // API 데이터 구조상 호내용이 호번호 텍스트로 오는 경우가 있음
+          // 호내용 필드가 있으면 그걸 씀
+          if (ho.호내용) iContent = ho.호내용.trim();
+
+          // "1. 1. 본문..." 중복 제거
+          if (iNum && iContent.startsWith(iNum)) {
+            iContent = iContent.substring(iNum.length).trim();
+          }
+
+          return { num: iNum, content: iContent };
         });
       }
-      return res.json({
-        mst, name: root?.기본정보?.법령명한글||'', type: root?.기본정보?.법령구분명||'',
-        department: root?.기본정보?.소관부처명||'',
-        promulgDate: root?.기본정보?.공포일자||'', enforcDate: root?.기본정보?.시행일자||'',
-        articles, source: 'api',
-      });
-    } catch(e) { console.error('[법령 API 오류]', e.message); }
-  }
-  res.status(404).json({ error: '법령을 찾을 수 없습니다.' });
-});
-
-// 3. 조문 팝업용 (핵심 수정 구역)
-router.get('/article', async (req, res) => {
-  const { mst, jo } = req.query;
-  if (!mst || !jo) return res.status(400).json({ error: 'mst, jo 필요' });
-
-  const local = readLocalLaws();
-  const law = local.find(l => l.mst === mst || l.name === mst);
-  
-  if (law) {
-    // 💡 새 구조(contents)에서 먼저 찾고, 없으면 구 구조(articles)에서 찾음
-    let art = findArticleInContents(law.contents, jo);
-    if (!art && law.articles) {
-      art = law.articles.find(a => String(a.num) === String(jo));
-    }
-    
-    if (art) return res.json(art);
+      paragraphs.push(paragraph);
+    });
   }
 
-  if (apiAvailable()) {
-    try {
-      const { getLawArticle } = require('../lawApi');
-      const raw  = await getLawArticle(mst, jo);
-      const unit = raw?.법령?.조문?.조문단위;
-      if (!unit) return res.status(404).json({ error: '조문 없음' });
-      const u = Array.isArray(unit) ? unit[0] : unit;
-      const 항 = u?.항 ? (Array.isArray(u.항)?u.항:[u.항]) : [];
-      return res.json({ 
-        num: u?.조문번호||jo, 
-        title: u?.조문제목||'', 
-        content: u?.조문내용||'',
-        paragraphs: 항.map(h => ({ num: h?.항번호||'', content: h?.항내용||'' })) // 💡 구조 통일
-      });
-    } catch(e) { console.error('[조문 API 오류]', e.message); }
+  return {
+    type: 'article',
+    num: num,
+    title: title,
+    content: content, // 조문 자체에 항 없이 본문만 있는 경우
+    paragraphs: paragraphs
+  };
+}
+
+/**
+ * 텍스트 앞부분에서 특정 문자열(번호 등)을 안전하게 제거
+ */
+function cleanText(text, removeStr) {
+  if (!text || !removeStr) return text;
+  const t = text.trim();
+  const r = removeStr.trim();
+  if (t.startsWith(r)) {
+    return t.substring(r.length).trim();
   }
-  res.status(404).json({ error: '조문을 찾을 수 없습니다.' });
-});
+  return t;
+}
 
-// 로컬 법령 추가/삭제는 기존과 동일하게 유지...
-router.post('/local', (req, res) => {
-  const laws = readLocalLaws();
-  const entry = { mst:'local-law-'+Date.now(), articles:[], contents:[], ...req.body };
-  laws.push(entry);
-  fs.writeFileSync(LAWS_FILE, JSON.stringify(laws, null, 2), 'utf8');
-  res.json({ ok:true, mst:entry.mst });
-});
-
-router.delete('/local/:mst', (req, res) => {
-  let laws = readLocalLaws();
-  const before = laws.length;
-  laws = laws.filter(l => l.mst !== req.params.mst);
-  if (laws.length === before) return res.status(404).json({ error: '없는 법령' });
-  fs.writeFileSync(LAWS_FILE, JSON.stringify(laws, null, 2), 'utf8');
-  res.json({ ok:true });
-});
+function formatDate(str) {
+  if (!str || str.length !== 8) return str;
+  return `${str.substring(0,4)}.${str.substring(4,6)}.${str.substring(6,8)}`;
+}
 
 module.exports = router;

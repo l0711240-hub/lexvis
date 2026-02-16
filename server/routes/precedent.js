@@ -1,99 +1,117 @@
-// server/routes/precedent.js
+// routes/precedent.js - 국가법령정보 API 전용
 const express = require('express');
-const router  = express.Router();
-const fs      = require('fs');
-const path    = require('path');
+const router = express.Router();
+const lawApi = require('../lawApi');
 
-const CASES_FILE = path.join(__dirname, '../../data/cases.json');
-
-function readLocalCases() {
-  try { return JSON.parse(fs.readFileSync(CASES_FILE, 'utf8')); }
-  catch { return []; }
-}
-function apiAvailable() {
-  const oc = process.env.LAW_API_OC;
-  return !!(oc && oc !== 'your_oc_id_here' && oc.trim() !== '여기에_발급받은_OC_아이디_입력');
-}
-
-// 판례 검색
+/**
+ * 1. 판례 검색
+ * GET /api/precedent/search?query=업무상과실&court=400&page=1&display=20
+ */
 router.get('/search', async (req, res) => {
-  const { query = '', court = '' } = req.query;
-  const local = readLocalCases();
-  const ql = query.toLowerCase().trim();
-  const results = local.filter(c => {
-    const mq = !ql || c.caseNum.toLowerCase().includes(ql) || c.caseName.toLowerCase().includes(ql)
-      || (c.category||'').toLowerCase().includes(ql) || (c.summary||'').toLowerCase().includes(ql)
-      || (c.fullText||'').toLowerCase().includes(ql);
-    const mc = !court || c.court.includes(court);
-    return mq && mc;
-  });
-
-  if (apiAvailable() && ql) {
-    try {
-      const { searchPrecedent } = require('../lawApi');
-      const apiData = await searchPrecedent({ query, page: 1, display: 20, court });
-      const root = apiData?.PrecSearch;
-      const apiItems = root?.prec
-        ? (Array.isArray(root.prec) ? root.prec : [root.prec]).map(p => ({
-            id: p.판례일련번호, caseNum: p.사건번호, caseName: p.사건명,
-            court: p.법원명, date: p.선고일자, result: p.판결유형,
-            category: p.판례분야, source: 'api',
-          }))
-        : [];
-      const merged = [
-        ...results.map(c => ({...c, source:'local'})),
-        ...apiItems.filter(a => !results.some(l => l.caseNum === a.caseNum)),
-      ];
-      return res.json({ total: merged.length, items: merged });
-    } catch(e) { console.warn('[API 실패, 로컬만 사용]', e.message); }
+  try {
+    const { query = '', court = '', page = 1, display = 20 } = req.query;
+    
+    const apiData = await lawApi.searchPrecedent({ 
+      query, 
+      page: parseInt(page), 
+      display: parseInt(display),
+      court 
+    });
+    
+    const root = apiData?.PrecSearch;
+    
+    if (!root || !root.prec) {
+      return res.json({ total: 0, items: [] });
+    }
+    
+    // API 응답을 통일된 형식으로 변환
+    const precArray = Array.isArray(root.prec) ? root.prec : [root.prec];
+    const items = precArray.map(prec => ({
+      id: prec.판례일련번호,
+      caseNum: prec.사건번호,
+      caseName: prec.사건명,
+      court: prec.법원명,
+      date: prec.선고일자,
+      result: prec.판결유형,
+      category: prec.판례분야,
+      summary: prec.판시사항 || ''
+    }));
+    
+    res.json({
+      total: parseInt(root.totalCnt) || items.length,
+      page: parseInt(page),
+      display: parseInt(display),
+      items
+    });
+    
+  } catch (error) {
+    console.error('[판례 검색 오류]', error.message);
+    res.status(500).json({ 
+      error: '판례 검색 중 오류가 발생했습니다.',
+      message: error.message 
+    });
   }
-
-  res.json({ total: results.length, items: results.map(c => ({...c, source:'local'})) });
 });
 
-// 판례 본문
+/**
+ * 2. 판례 상세 조회
+ * GET /api/precedent/detail/:id
+ */
 router.get('/detail/:id', async (req, res) => {
-  const id = req.params.id;
-  const local = readLocalCases();
-  const found = local.find(c => c.id === id || c.caseNum === id);
-  if (found) return res.json({...found, source:'local'});
-
-  if (apiAvailable()) {
-    try {
-      const { getPrecedentDetail } = require('../lawApi');
-      const raw = await getPrecedentDetail(id);
-      const root = raw?.PrecService;
-      if (!root) return res.status(404).json({ error: '판례를 찾을 수 없습니다.' });
-      return res.json({
-        id, caseNum: root.사건번호||'', caseName: root.사건명||'',
-        court: root.법원명||'', date: root.선고일자||'', result: root.판결유형||'',
-        summary: root.판시사항||'', gist: root.판결요지||'',
-        refLaws: root.참조조문||'', refCases: root.참조판례||'',
-        fullText: (root.판례내용||'').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,''),
-        source: 'api',
-      });
-    } catch(e) { console.error('[API 오류]', e.message); }
+  try {
+    const { id } = req.params;
+    
+    console.log('[판례 상세 요청] ID:', id);
+    
+    const apiData = await lawApi.getPrecedentDetail(id);
+    
+    console.log('[판례 API 응답 구조]', JSON.stringify(apiData, null, 2).substring(0, 500));
+    
+    // API 응답 구조 확인 - 여러 가능한 경로 시도
+    const root = apiData?.PrecService || apiData?.판례서비스 || apiData;
+    
+    if (!root) {
+      console.error('[판례 상세] 응답 데이터가 비어있음');
+      return res.status(404).json({ error: '판례를 찾을 수 없습니다.' });
+    }
+    
+    // HTML 태그 제거 및 정리
+    const cleanText = (text) => {
+      if (!text) return '';
+      return text
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .trim();
+    };
+    
+    // 응답 데이터 구성 - 여러 필드명 시도
+    const response = {
+      id,
+      caseNum: root.사건번호 || root.caseNumber || '',
+      caseName: root.사건명 || root.caseName || '',
+      court: root.법원명 || root.courtName || '',
+      courtType: root.법원종류코드 || root.courtType || '',
+      date: root.선고일자 || root.judgmentDate || '',
+      result: root.판결유형 || root.judgmentType || '',
+      category: root.사건종류명 || root.caseType || '',
+      summary: cleanText(root.판시사항 || root.summary || ''),
+      gist: cleanText(root.판결요지 || root.gist || ''),
+      refLaws: cleanText(root.참조조문 || root.referenceLaws || ''),
+      refCases: cleanText(root.참조판례 || root.referenceCases || ''),
+      fullText: cleanText(root.판례내용 || root.content || '')
+    };
+    
+    console.log('[판례 상세 성공] 사건번호:', response.caseNum);
+    res.json(response);
+    
+  } catch (error) {
+    console.error('[판례 상세 조회 오류]', error.message);
+    console.error('[에러 스택]', error.stack);
+    res.status(500).json({ 
+      error: '판례 상세 조회 중 오류가 발생했습니다.',
+      message: error.message 
+    });
   }
-  res.status(404).json({ error: '판례를 찾을 수 없습니다.' });
-});
-
-// 로컬 판례 추가
-router.post('/local', (req, res) => {
-  const cases = readLocalCases();
-  const entry = { id:'local-'+Date.now(), relatedUpper:[], relatedLower:[], ...req.body };
-  cases.push(entry);
-  fs.writeFileSync(CASES_FILE, JSON.stringify(cases, null, 2), 'utf8');
-  res.json({ ok:true, id:entry.id });
-});
-
-// 로컬 판례 삭제
-router.delete('/local/:id', (req, res) => {
-  let cases = readLocalCases();
-  const before = cases.length;
-  cases = cases.filter(c => c.id !== req.params.id);
-  if (cases.length === before) return res.status(404).json({ error: '없는 판례' });
-  fs.writeFileSync(CASES_FILE, JSON.stringify(cases, null, 2), 'utf8');
-  res.json({ ok:true });
 });
 
 module.exports = router;

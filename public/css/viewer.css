@@ -1,53 +1,8 @@
-/* ── [1. 테마 변수 통합 정의] ── */
-:root {
-  /* 기본: 다크 모드 */
-  --bg: #121212;
-  --surface: #1e1e1e;
-  --surface2: #2d2d2d;
-  --text: #e0e0e0;
-  --text-muted: #aaaaaa;
-  --text-dim: #707070;
-  --accent: #c8a96e; 
-  --accent-dim: rgba(200, 169, 110, 0.1);
-  --border: #333333;
-  --title-color: #c8a96e;
-  --selection-bg: rgba(200, 169, 110, 0.3);
-  --uhl-bg: rgba(200, 169, 110, 0.3);
+/* viewer.css - 라이트모드 가독성 개선 */
 
-  --font-serif: 'Noto Serif KR', serif;
-  --font-sans: 'Pretendard', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-}
+/* 기본 변수는 main.css에서 가져옴 */
 
-/* ── [2. 라이트 모드 스타일 통합] ── */
-[data-theme='light'] {
-  --bg:#eaebe2 ;      /* 눈이 편안한 미색 배경 */
-  --surface: #f1f1ed;
-  --surface2: #f8f9fa;
-  --text: #212529;    /* 진한 먹색 텍스트 */
-  --text-muted: #495057;
-  --text-dim: #adb5bd;
-  --accent: #ff922b;  /* 산뜻한 주황 포인트 */
-  --accent-dim: rgba(255, 146, 43, 0.08);
-  --border: #dee2e6;
-  --title-color: #1a1a1a;
-  --selection-bg: rgba(255, 146, 43, 0.15);
-  --uhl-bg: rgba(255, 146, 43, 0.15);
-}
-
-/* 라이트 모드 전용 그림자/디테일 보정 */
-[data-theme='light'] .hero-search-panel,
-[data-theme='light'] .feature-card,
-[data-theme='light'] .result-card {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05) !important;
-}
-
-[data-theme='light'] .hero-btns .btn {
-  background: #ff922b !important;
-  color: #fff !important;
-}
-
-/* ── [3. 레이아웃 (구조 및 위치 보존)] ── */
+/* ══ 레이아웃 ══ */
 body, html { 
   background-color: var(--bg); 
   color: var(--text); 
@@ -56,13 +11,50 @@ body, html {
 }
 
 .detail-topbar, .home-nav, .sub-nav {
-  position: sticky; top: 0; z-index: 100; height: 52px;
-  display: flex; align-items: center; justify-content: space-between; padding: 0 14px;
+  position: sticky; 
+  top: 0; 
+  z-index: 100; 
+  height: 52px;
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  padding: 0 14px;
   background-color: var(--surface) !important;
   border-bottom: 1px solid var(--border) !important;
 }
 
-.logo, .tlogo, .nav-links a, .icon-btn, .tcase { color: var(--text) !important; text-decoration: none; }
+/* 탑바 내부 요소들 */
+.tbl {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tbr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.tcase {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.tdiv {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.logo, .tlogo, .nav-links a, .icon-btn, .tcase { 
+  color: var(--text) !important; 
+  text-decoration: none; 
+}
 
 /* 판례 뷰어 3단 패널 구조 */
 .detail-body { 
@@ -72,10 +64,19 @@ body, html {
   overflow: hidden; 
 }
 
-.panel-left, .panel-right { background: var(--surface) !important; border-color: var(--border) !important; overflow-y: auto; }
-.panel-center { background: var(--bg) !important; padding: 28px 40px; overflow-y: auto; }
+.panel-left, .panel-right { 
+  background: var(--surface) !important; 
+  border-color: var(--border) !important; 
+  overflow-y: auto; 
+}
 
-/* ── [4. 본문 요소 (판례/법률 자동 적용)] ── */
+.panel-center { 
+  background: var(--bg) !important; 
+  padding: 28px 40px; 
+  overflow-y: auto; 
+}
+
+/* ══ 본문 요소 ══ */
 .lbody { 
   font-family: var(--font-serif); 
   color: var(--text) !important; 
@@ -83,364 +84,769 @@ body, html {
   font-size: 15px; 
 }
 
-.case-title { font-size: 22px; font-weight: 700; color: var(--text); margin-bottom: 10px; }
-.lt, .section-title { color: var(--accent) !important; border-bottom: 1px solid var(--border); margin: 24px 0 12px; padding-bottom: 6px; }
-
-/* 법령 계층 구조 */
-.law-part { font-size: 1.5rem; font-weight: 800; color: var(--accent); text-align: center; margin: 40px 0; }
-.law-chapter { font-size: 1.25rem; font-weight: 700; color: var(--text); border-bottom: 2px solid var(--border); padding: 8px 0; margin: 30px 0 15px; }
-.p-num { color: var(--accent); font-weight: 800; margin-right: 6px; }
-
-/* ── [5. 컴포넌트 스타일] ── */
-.hero-search-panel, .feature-card, .result-card {
-  background: var(--surface) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 12px;
+.case-title { 
+  font-size: 22px; 
+  font-weight: 700; 
+  color: var(--text); 
+  margin-bottom: 10px; 
 }
 
-.toc { 
-  padding: 8px 15px; font-size: 13px; color: var(--text-muted); cursor: pointer; 
-  border-left: 3px solid transparent; 
+.lt, .section-title { 
+  color: var(--accent) !important; 
+  border-bottom: 1px solid var(--border); 
+  margin: 24px 0 12px; 
+  padding-bottom: 6px; 
 }
-.toc:hover { background: var(--surface2); color: var(--text); }
-.toc.active { border-left-color: var(--accent); color: var(--accent) !important; background: var(--accent-dim); font-weight: bold; }
 
-.viewer-toolbar { display: flex; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--bg); }
-.tbtn { background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted); border-radius: 4px; padding: 5px 12px; cursor: pointer; }
-.tbtn.active { background: var(--accent-dim) !important; color: var(--accent) !important; border-color: var(--accent) !important; }
+/* ══ 법령 계층 구조 ══ */
+.law-main-title {
+  font-family: var(--font-serif);
+  font-size: 3.2em;
+  text-align: center;
+  font-weight: 900;
+  margin: 40px 0 10px 0;
+  color: var(--accent) !important;
+}
 
-/* 기타 유틸리티 */
-.uhl { background-color: var(--uhl-bg) !important; }
-::selection { background-color: var(--selection-bg); }
-/* public/css/viewer.css */
-.detail-topbar{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 14px;height:52px;background:var(--surface);border-bottom:1px solid var(--border);}
-.tcase{font-size:12px;color:var(--text-muted);font-family:var(--font-mono);}
-.tbr{display:flex;align-items:center;gap:5px;}
-.reading-progress{position:fixed;top:52px;left:0;height:2px;background:var(--accent);z-index:99;width:0%;transition:width .1s;}
-.detail-body{flex:1;display:grid;grid-template-columns:220px 1fr 290px;height:calc(100vh - 52px);overflow:hidden;}
-/* LEFT */
-.panel-left{background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;padding:14px 0;}
-.pst{padding:0 12px;margin-bottom:7px;font-family:var(--font-mono);font-size:10px;color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;}
-.toc{padding:6px 12px;cursor:pointer;font-size:12px;color:var(--text-muted);border-left:2px solid transparent;transition:all .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.toc:hover{background:var(--surface2);color:var(--text);}
-.toc.active{border-left-color:var(--accent);color:var(--accent);background:rgba(200,169,110,.06);}
-.toc-info{padding:4px 12px;font-size:11px;color:var(--text-muted);font-family:var(--font-mono);}
-.tdivider{height:1px;background:var(--border);margin:9px 0;}
-/* CENTER */
-.panel-center{overflow-y:auto;background:var(--bg);padding:28px 40px;}
-.viewer-toolbar{display:flex;align-items:center;gap:6px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
-.tbtn{padding:5px 11px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:12px;cursor:pointer;transition:all .15s;font-family:var(--font-sans);}
-.tbtn:hover{border-color:var(--accent);color:var(--accent);}
-.tbtn.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);}
-.tsep{width:1px;height:18px;background:var(--border);}
-.fctl{display:flex;align-items:center;gap:6px;}
-.fctl span{font-size:11px;color:var(--text-muted);}
-input[type=range]{width:68px;accent-color:var(--accent);cursor:pointer;}
-/* CASE BODY */
-.case-hd{margin-bottom:28px;}
-.case-court-badge{display:inline-flex;align-items:center;padding:5px 11px;border:1px solid var(--accent);border-radius:4px;font-size:11px;font-family:var(--font-mono);color:var(--accent);margin-bottom:12px;}
-.case-title{font-family:var(--font-serif);font-size:22px;line-height:1.4;margin-bottom:9px;}
-.case-meta{display:flex;gap:14px;flex-wrap:wrap;}
-.mi{font-size:11px;color:var(--text-muted);font-family:var(--font-mono);}
-.ml{color:var(--text-dim);margin-right:4px;}
-.ls{margin-bottom:24px;}
-.lt{font-family:var(--font-serif);font-size:15px;font-weight:600;color:var(--accent);margin-bottom:10px;display:flex;align-items:center;gap:8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
-.ln{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);}
-.lbody{font-family:var(--font-serif);font-size:15px;line-height:2;color:var(--text);word-break:keep-all;cursor:text;}
-/* 법령 참조 / 용어 */
-.law-ref{border-bottom:1px solid var(--blue);color:var(--blue);cursor:pointer;transition:all .15s;}
-.law-ref:hover{background:var(--blue-dim);border-radius:2px;}
-.term{border-bottom:1px dashed var(--accent);color:var(--accent);cursor:pointer;transition:background .15s;}
-.term:hover{background:var(--accent-dim);border-radius:2px;}
-/* 검색 하이라이트 */
-.sh{background:rgba(200,169,110,.3);border-radius:2px;}
-.sh.cur{background:rgba(200,169,110,.7);}
-/* 사용자 하이라이트 */
-.uhl{background:rgba(255,220,80,.28);border-radius:2px;cursor:pointer;}
-.uhl:hover{background:rgba(255,100,80,.22);}
-/* 인라인 검색 */
-.inline-search{display:flex;align-items:center;gap:5px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:3px 9px;}
-.inline-search input{background:none;border:none;outline:none;color:var(--text);font-size:12px;width:110px;font-family:var(--font-sans);}
-.inline-search input::placeholder{color:var(--text-dim);}
-.sc{font-size:10px;font-family:var(--font-mono);color:var(--text-dim);min-width:36px;}
-.sn{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;}
-/* RIGHT */
-.panel-right{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
-.panel-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
-.ptab{flex:1;padding:10px 5px;text-align:center;font-size:12px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;}
-.ptab.active{color:var(--accent);border-bottom-color:var(--accent);}
-.pc{padding:14px;overflow-y:auto;flex:1;}
-.tcrd{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:9px;cursor:pointer;transition:border-color .15s;}
-.tcrd:hover,.tcrd.selected{border-color:var(--accent);}
-.tw{font-weight:600;color:var(--accent);font-size:14px;margin-bottom:3px;}
-.th{font-size:11px;color:var(--text-dim);font-family:var(--font-mono);margin-bottom:5px;}
-.td{font-size:12px;color:var(--text-muted);line-height:1.7;}
-.tl2{font-size:11px;font-family:var(--font-mono);color:var(--blue);margin-top:5px;}
-.ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.hint{font-size:12px;color:var(--text-dim);text-align:center;padding:14px 0;line-height:1.7;}
-.rst{font-size:10px;font-family:var(--font-mono);color:var(--text-dim);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;margin-top:12px;display:flex;align-items:center;gap:6px;}
-.rst::after{content:'';flex:1;height:1px;background:var(--border);}
-.rcrd{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:11px;margin-bottom:7px;cursor:pointer;transition:all .15s;}
-.rcrd:hover{border-color:var(--blue);transform:translateX(2px);}
-.rcrd.up{border-left:3px solid var(--purple);}.rcrd.dn{border-left:3px solid var(--green);}
-.rtype{font-size:10px;font-family:var(--font-mono);margin-bottom:2px;}
-.rtype.up{color:var(--purple);}.rtype.dn{color:var(--green);}
-.rtitle{font-size:12px;font-weight:500;margin-bottom:2px;line-height:1.5;}
-.rmeta{font-size:10px;font-family:var(--font-mono);color:var(--text-dim);}
-/* MODALS */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:300;display:none;align-items:center;justify-content:center;}
-.modal-overlay.show{display:flex;}
-.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;width:580px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 16px 48px rgba(0,0,0,.5);}
-.modal-hdr{padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;}
-.modal-title{font-family:var(--font-serif);font-size:17px;}
-.modal-sub{font-size:11px;font-family:var(--font-mono);color:var(--text-muted);margin-top:3px;}
-.modal-body{padding:18px 20px;overflow-y:auto;flex:1;}
-.modal-ftr{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
-.modal-ref{font-size:11px;font-family:var(--font-mono);color:var(--text-muted);}
-/* 용어 편집 */
-.form-label{font-size:12px;color:var(--text-muted);font-weight:500;margin-bottom:8px;}
-.form-row{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px;}
-.form-input{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:7px 9px;color:var(--text);font-family:var(--font-sans);font-size:13px;outline:none;}
-.form-input:focus{border-color:var(--accent);}
-.teli{display:flex;align-items:flex-start;gap:7px;padding:9px;background:var(--surface2);border-radius:4px;margin-bottom:5px;border:1px solid var(--border);}
-.teliw{font-weight:600;color:var(--accent);font-size:12px;}
-.telid{font-size:11px;color:var(--text-muted);margin-top:2px;}
-.tdel{background:none;border:1px solid var(--border);border-radius:3px;color:var(--text-dim);cursor:pointer;padding:2px 6px;font-size:11px;flex-shrink:0;}
-.tdel:hover{border-color:var(--red);color:var(--red);}
-/* 계층 구조 들여쓰기 */
-.law-part { font-size: 1.3rem; font-weight: 800; color: var(--accent); margin: 40px 0 20px; padding-bottom: 10px; border-bottom: 2px solid var(--accent); }
-.law-chapter { font-size: 1.15rem; font-weight: 700; margin: 30px 0 15px; border-left: 4px solid var(--accent); padding-left: 12px; }
-.law-section { font-size: 1rem; font-weight: 600; margin: 20px 0 10px; color: var(--text-dim); }
+/* 라이트모드 전용 - 본문 색상 */
+[data-theme='light'] .law-main-title {
+  color: #8b6914 !important; /* 진한 골드 */
+}
 
-.lp-para { margin-top: 10px; line-height: 1.7; }
-.li-wrap { padding-left: 24px; margin-top: 6px; }
-.li-item { font-size: 0.95em; color: var(--text-dim); margin-bottom: 4px; }
-.ls-wrap { padding-left: 20px; border-left: 1px dashed var(--border); margin-top: 4px; }
-.ls-sub { font-size: 0.9em; color: var(--text-muted); margin-bottom: 2px; }
+.law-info-meta {
+  text-align: center;
+  color: var(--text) !important;
+  font-size: 1.1em;
+  margin-bottom: 50px;
+  padding-bottom: 25px;
+  border-bottom: 2px double var(--accent);
+}
 
-.p-num { color: var(--accent); font-weight: bold; margin-right: 4px; }
-.i-num, .s-num { font-weight: 600; margin-right: 4px; }
+/* 편, 장, 절 */
+.law-hierarchy-header {
+  font-family: var(--font-serif);
+  color: var(--accent) !important;
+  font-weight: 900;
+  background: transparent !important;
+  border: none !important;
+}
 
-/* 목차 위계 스타일 */
-.toc-part { font-weight: 800; color: var(--accent); margin-top: 15px; font-size: 13px; }
-.toc-chapter { font-weight: 700; padding-left: 10px; margin-top: 8px; font-size: 12px; }
-.toc-section { font-weight: 600; padding-left: 20px; color: var(--text-dim); font-size: 12px; }
-.toc-art { padding-left: 30px; font-weight: 500; }
-.toc-para { padding-left: 45px; font-size: 11px; color: var(--text-muted); opacity: 0.8; }
+[data-theme='light'] .law-hierarchy-header {
+  color: #8b6914 !important;
+}
 
-/* 현재 위치 하이라이트 */
-.toc.active {
-  background: var(--accent-light); /* 강조색 배경 */
-  color: var(--accent);
-  border-right: 3px solid var(--accent);
+.law-hierarchy-header.part {
+  font-size: 2.3em;
+  text-align: center;
+  margin: 80px 0 40px 0;
+}
+
+.law-hierarchy-header.chapter {
+  font-size: 1.8em;
+  text-align: left;
+  margin: 50px 0 25px 0;
+}
+
+.law-hierarchy-header.section {
+  font-size: 1.4em;
+  text-align: left;
+  margin: 35px 0 15px 0;
+}
+
+/* 조문 */
+.ls.law-article .lt {
+  font-family: var(--font-serif);
+  color: var(--accent) !important;
+  font-size: 1.3em;
+  font-weight: 700;
+  border-bottom: 1px solid var(--accent) !important;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+[data-theme='light'] .ls.law-article .lt {
+  color: #8b6914 !important;
+  border-bottom-color: #8b6914 !important;
+}
+
+/* 본문, 항, 호 */
+.lbody, .art-main-content, .law-paragraph, .law-item {
+  color: var(--text) !important;
+  font-family: var(--font-serif);
+  line-height: 2;
+}
+
+.art-num-point {
+  color: var(--accent) !important;
   font-weight: bold;
-  transition: all 0.2s;
+  margin-right: 8px;
 }
 
-/* ── 법령 목차(TOC) 스타일 ── */
-.toc {
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 13px;
-  border-left: 3px solid transparent;
-  transition: all 0.2s ease;
+[data-theme='light'] .art-num-point {
+  color: #8b6914 !important;
+}
+
+.ln {
+  font-family: var(--font-mono);
+  font-size: 11px;
   color: var(--text-dim);
 }
 
-.toc:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+/* ══ 목차 (TOC) ══ */
+.toc { 
+  padding: 8px 15px; 
+  font-size: 13px; 
+  color: var(--text-muted); 
+  cursor: pointer; 
+  border-left: 3px solid transparent; 
+  transition: all .15s;
 }
 
-/* 목차 위계별 들여쓰기 */
-.toc-part { font-weight: 800; color: var(--accent); margin-top: 15px; border-bottom: 1px solid var(--border); }
-.toc-chapter { font-weight: 700; padding-left: 15px; margin-top: 10px; }
-.toc-section { font-weight: 600; padding-left: 25px; color: var(--text-dim); }
-.toc-art { padding-left: 35px; }
-.toc-para { padding-left: 50px; font-size: 12px; opacity: 0.7; }
+.toc:hover { 
+  background: var(--surface2); 
+  color: var(--text); 
+}
 
-/* 💡 실시간 하이라이트 (JS가 활성화시킴) */
-.toc.active {
-  background: var(--accent-light); /* 강조색의 연한 버전 */
-  color: var(--accent);
-  border-left: 3px solid var(--accent);
+.toc.active { 
+  border-left-color: var(--accent); 
+  color: var(--accent) !important; 
+  background: var(--accent-dim); 
+  font-weight: bold; 
+}
+
+/* 목차 계층별 */
+.toc-part, .toc-chapter, .toc-section {
+  color: var(--blue) !important;
   font-weight: bold;
 }
 
-/* ── 법령 본문(Body) 계층 스타일 ── */
-.law-part { font-size: 1.5rem; font-weight: 800; color: var(--accent); margin: 50px 0 20px; text-align: center; }
-.law-chapter { font-size: 1.3rem; font-weight: 700; margin: 40px 0 15px; padding-bottom: 5px; border-bottom: 2px solid var(--border); }
-.law-section { font-size: 1.1rem; font-weight: 600; margin: 30px 0 10px; color: var(--text-dim); }
-
-.article-box { margin-bottom: 40px; }
-.lp-para { margin-top: 12px; line-height: 1.8; padding-left: 5px; }
-.li-wrap { padding-left: 25px; margin-top: 8px; }
-.ls-wrap { padding-left: 20px; border-left: 1px dashed var(--border); margin-top: 5px; }
-
-/* 항 번호(①) 강조 */
-.p-num { color: var(--accent); font-weight: bold; margin-right: 6px; }
-
-/* 💡 [추가] 법률 용어(점밑줄) On/Off 제어 */
-/* .term 클래스는 이미 있으므로, 부모에 .hide-terms가 붙었을 때만 해제합니다 */
-.hide-terms .term {
-    border-bottom: none !important;
-    color: inherit !important;
-    background: none !important;
-    cursor: text !important;
+[data-theme='light'] .toc-part,
+[data-theme='light'] .toc-chapter,
+[data-theme='light'] .toc-section {
+  color: #4a6fa5 !important;
 }
 
-/* 💡 [추가] 사용자 하이라이트(형광펜) On/Off 제어 */
-/* 기존 .uhl 스타일을 유지하되, 테두리와 형광펜 느낌을 강화한 버전입니다 */
-.text-highlight {
-    background-color: rgba(255, 255, 0, 0.6); /* 진한 형광 노랑 */
-    outline: 2px solid #ffcc00;
-    border-radius: 2px;
-    box-shadow: 0 0 4px rgba(255, 220, 0, 0.4);
+.toc-art {
+  color: var(--text-muted) !important;
 }
 
-/* .hide-highlights가 부모에 붙으면 형광펜 효과 제거 */
-.hide-highlights .text-highlight,
-.hide-highlights .uhl {
-    background: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-    cursor: text !important;
+[data-theme='light'] .toc-art {
+  color: #6b6358 !important;
 }
 
-/* 💡 용어 밑줄(점선) 숨기기 */
-.hide-terms .term {
-  border-bottom: none !important;
-  background: none !important;
-  color: inherit !important;
+.toc-info {
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
 }
 
-/* 💡 형광펜(사용자 하이라이트) 숨기기 */
-/* 기존 .uhl 클래스나 제가 새로 정의할 .text-highlight에 적용 */
-.hide-highlights .uhl, 
-.hide-highlights .text-highlight {
-  background: none !important;
-  outline: none !important;
-  box-shadow: none !important;
+.pst {
+  padding: 0 12px;
+  margin-bottom: 7px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: .1em;
+  text-transform: uppercase;
 }
 
-/* 형광펜 효과를 더 확실하게 (형광펜+테두리) */
-.text-highlight {
-  background-color: rgba(255, 255, 0, 0.5);
-  outline: 2px solid #ffcc00;
+.tdivider {
+  height: 1px;
+  background: var(--border);
+  margin: 9px 0;
+}
+
+/* ══ 뷰어 툴바 ══ */
+.viewer-toolbar { 
+  display: flex; 
+  align-items: center;
+  gap: 6px; 
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.tbtn {
+  padding: 5px 11px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .15s;
+  font-family: var(--font-sans);
+}
+
+.tbtn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tbtn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tsep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+}
+
+.fctl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fctl span {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+input[type=range] {
+  width: 68px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ══ 판례 헤더 ══ */
+.case-hd {
+  margin-bottom: 28px;
+}
+
+.case-court-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.case-meta {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.mi {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.ml {
+  color: var(--text-dim);
+  margin-right: 4px;
+}
+
+/* ══ 법령 참조 / 용어 ══ */
+.law-ref {
+  border-bottom: 1px solid var(--blue);
+  color: var(--blue);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.law-ref:hover {
+  background: var(--blue-dim);
   border-radius: 2px;
 }
 
-/* 1. 드래그 색상 테마화 (드래그할 때 파란색 대신 하이라이트 색상으로 보임) */
-.lbody ::selection {
-  background-color: rgba(200, 169, 110, 0.4); /* 우리 테마의 강조색(accent) 계열 */
-  color: inherit;
+.term {
+  border-bottom: 1px dashed var(--accent);
+  color: var(--accent);
+  cursor: pointer;
+  transition: background .15s;
 }
 
-/* 2. 하이라이트 실제 적용 스타일 (형광펜 효과) */
+.term:hover {
+  background: var(--accent-dim);
+  border-radius: 2px;
+}
+
+[data-theme='light'] .term {
+  color: #8b6914;
+  border-bottom-color: #8b6914;
+}
+
+/* ══ 검색 하이라이트 ══ */
+.sh {
+  background: var(--accent-dim);
+  border-radius: 2px;
+  padding: 1px 2px;
+}
+
+.sh.cur {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ══ 사용자 하이라이트 ══ */
 .uhl {
-  background-color: rgba(255, 235, 59, 0.45); /* 선명한 형광 노랑 */
-  border-bottom: 2px solid rgba(255, 193, 7, 0.5); /* 하단에 살짝 더 진한 선 */
+  background: rgba(255, 220, 80, .28);
   border-radius: 2px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  padding: 1px 2px;
 }
 
 .uhl:hover {
-  background-color: rgba(255, 235, 59, 0.6); /* 마우스 올리면 더 진하게 */
+  background: rgba(255, 180, 80, .35);
 }
 
-/* ── [메인/서브 내비게이션 바 테마 통합] ── */
-
-/* 1. 홈 내비게이션 (.home-nav) 및 서브 내비게이션 (.sub-nav) */
-.home-nav, .sub-nav {
-  background-color: var(--bg) !important; /* 전체 배경색과 동기화 */
-  color: var(--text) !important;
-  border-bottom: 1px solid var(--border);
-  transition: all 0.2s;
+[data-theme='light'] .uhl {
+  background: rgba(255, 193, 7, .25);
 }
 
-/* 2. 로고 및 링크 글자색 강제 전환 */
-.home-nav .logo, 
-.home-nav .nav-links a, 
-.home-nav .nav-right,
-.sub-nav .tlogo,
-.sub-nav .nav-links a {
-  color: var(--text) !important;
+/* ══ 인라인 검색 ══ */
+.inline-search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  flex-shrink: 0;
 }
 
-/* 3. 내비게이션 바 내부의 아이콘 버튼(☀) */
-.home-nav .icon-btn, 
-.sub-nav .icon-btn {
-  color: var(--text) !important;
-}
-
-.hero-eyebrow {
-  display: flex;            /* 유연한 배치를 위해 사용 */
-  align-items: center;      /* 선과 글자 높이 맞춤 */
-  font-family: 'Pretendard', sans-serif;
-  font-size: 0.85rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: var(--accent);
-  margin-bottom: 16px;
-  white-space: nowrap;      /* 글자가 줄바꿈되지 않게 */
-}
-
-/* 글자 뒤로 선 긋기 */
-.hero-eyebrow::after {
-  content: '';
-  flex-grow: 1;             /* 남은 공간을 선으로 다 채움 */
-  height: 1px;              /* 선 두께 */
-  background: var(--accent); /* 선 색상 */
-  margin-left: 15px;        /* 글자와 선 사이 간격 */
-  opacity: 0.3;             /* 선은 배경처럼 은은하게 */
-}
-
-.stype-btn {
-  /* 1. 폰트 교체: 무조건 프리텐다드 */
-  font-family: 'Pretendard', sans-serif;
-  font-size: 0.95rem;
-  font-weight: 500;         /* 기본은 중간 두께 */
-  letter-spacing: -0.02em;  /* 자간을 살짝 조여줍니다 */
-  
-  /* 2. 버튼 기본 스타일 (구린 회색 제거) */
-  background: transparent;
-  color: var(--text-dim);   /* 비활성 상태는 흐릿하게 */
+.inline-search input {
+  background: none;
   border: none;
-  padding: 8px 16px;
+  outline: none;
+  color: var(--text);
+  font-size: 12px;
+  width: 100px;
+  font-family: var(--font-sans);
+}
+
+.inline-search input::placeholder {
+  color: var(--text-dim);
+}
+
+.sc {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  min-width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.sn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
+  font-size: 13px;
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
 }
 
-/* 3. 활성화된 버튼 (active) 스타일 */
-.stype-btn.active {
-  color: var(--accent);     /* 강조색 */
-  font-weight: 700;         /* 활성화되면 더 두껍게 */
+.sn:hover {
+  color: var(--accent);
 }
 
-/* 4. 선택된 버튼 아래에 작은 점이나 선 추가 (옵션) */
-.stype-btn.active::after {
+/* ══ 우측 패널 ══ */
+.panel-right {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.ptab {
+  flex: 1;
+  padding: 10px 5px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all .15s;
+}
+
+.ptab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.pc {
+  padding: 14px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* 용어 카드 */
+.tcrd {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 9px;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+
+.tcrd:hover, .tcrd.selected {
+  border-color: var(--accent);
+}
+
+.tw {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 14px;
+  margin-bottom: 3px;
+}
+
+[data-theme='light'] .tw {
+  color: #8b6914;
+}
+
+.th {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  margin-bottom: 5px;
+}
+
+.td {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
+.tl2 {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--blue);
+  margin-top: 5px;
+}
+
+[data-theme='light'] .tl2 {
+  color: #4a6fa5;
+}
+
+/* 연계 판례 */
+.rcrd {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 11px;
+  margin-bottom: 7px;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.rcrd:hover {
+  border-color: var(--blue);
+  transform: translateX(2px);
+}
+
+.rtype {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+
+.rnum {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+
+.rdate {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 14px 0;
+  line-height: 1.7;
+}
+
+.rst {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rst::after {
   content: '';
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 4px;
-  height: 4px;
-  background-color: var(--accent);
-  border-radius: 50%;
+  flex: 1;
+  height: 1px;
+  background: var(--border);
 }
 
-/* 마우스 올렸을 때 효과 */
-.stype-btn:hover {
+/* ══ 진행도 바 ══ */
+.reading-progress {
+  position: fixed;
+  top: 52px;
+  left: 0;
+  height: 2px;
+  background: var(--accent);
+  z-index: 99;
+  width: 0%;
+  transition: width .1s;
+}
+
+/* ══ 스크롤 여백 ══ */
+.ls, .case-section-target {
+  scroll-margin-top: 100px !important;
+}
+
+[id^="section-"] {
+  scroll-margin-top: 100px !important;
+}
+
+/* ══ 모달 오버레이 ══ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, .65);
+  z-index: 9999; /* 모든 요소보다 위에 */
+  display: none;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(2px);
+}
+
+.modal-overlay.show {
+  display: flex;
+}
+
+.modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: 580px;
+  max-width: 90vw;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+  animation: modalIn .25s ease;
+  position: relative;
+  z-index: 10000;
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+[data-theme='light'] .modal-overlay {
+  background: rgba(42, 37, 32, .4);
+}
+
+[data-theme='light'] .modal-box {
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .15);
+}
+
+.modal-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modal-title {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  font-weight: 700;
   color: var(--text);
 }
 
-/* 버튼들을 감싸는 영역 */
-.search-type-container {
-  display: flex;
-  gap: 8px;           /* 버튼 사이 간격 */
-  margin-bottom: 12px; /* 검색창과의 간격 */
-  justify-content: flex-start; /* 왼쪽 정렬 (중앙 정렬이면 center) */
+.modal-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
 }
+
+.modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.modal-ftr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modal-ref {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+}
+
+/* 용어 편집 모달 전용 */
+.form-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.form-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.form-input {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color .2s;
+  flex: 1;
+}
+
+.form-input:focus {
+  border-color: var(--accent);
+}
+
+.form-input::placeholder {
+  color: var(--text-dim);
+}
+
+/* 용어 목록 */
+#termList {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface2);
+}
+
+.term-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  transition: background .15s;
+}
+
+.term-list-item:last-child {
+  border-bottom: none;
+}
+
+.term-list-item:hover {
+  background: var(--surface);
+}
+
+.term-list-word {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 13px;
+  min-width: 80px;
+}
+
+.term-list-def {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.term-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--red);
+  font-size: 18px;
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+
+.term-delete-btn:hover {
+  background: rgba(224, 92, 92, .1);
+}
+
+/* ══ 사건 유형 배지 ══ */
+.case-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: white !important;
+  margin-bottom: 8px;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+}
+
+.criminal { background-color: #c85a5a !important; }
+.civil { background-color: #4a6fa5 !important; }
+.const { background-color: #8b7ba8 !important; }
+.admin { background-color: #5a9b6b !important; }
+.family { background-color: #a67c52 !important; }
+.default { background-color: #6b6358 !important; }

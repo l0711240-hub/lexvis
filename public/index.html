@@ -16,7 +16,7 @@
     <div class="modal-hdr">
       <div>
         <div class="modal-title" id="lmTitle"></div>
-        <div class="modal-sub"   id="lmSub"></div>
+        <div class="modal-sub" id="lmSub"></div>
       </div>
       <button class="icon-btn" onclick="document.getElementById('lawModal').classList.remove('show')">✕</button>
     </div>
@@ -39,7 +39,7 @@
       <div style="margin-bottom:14px;">
         <div class="form-label">새 용어 추가</div>
         <div class="form-row">
-          <input class="form-input" id="nWord"  placeholder="용어">
+          <input class="form-input" id="nWord" placeholder="용어">
           <input class="form-input" id="nHanja" placeholder="한자/영문">
         </div>
         <textarea class="form-input" id="nDef" placeholder="정의 및 설명" style="width:100%;resize:vertical;min-height:60px;margin-bottom:7px;"></textarea>
@@ -78,9 +78,9 @@
     <div class="ain" style="animation-delay:.12s;">
       <div class="hero-search-panel">
         <div class="stype-tabs">
-          <button class="stype-btn active" id="ht-all"  onclick="hTab('all')">전체</button>
-          <button class="stype-btn"        id="ht-case" onclick="hTab('case')">판례</button>
-          <button class="stype-btn"        id="ht-law"  onclick="hTab('law')">법률</button>
+          <button class="stype-btn active" id="ht-all" onclick="hTab('all')">전체</button>
+          <button class="stype-btn" id="ht-case" onclick="hTab('case')">판례</button>
+          <button class="stype-btn" id="ht-law" onclick="hTab('law')">법률</button>
         </div>
         <div class="search-bar-wrap">
           <span class="search-icon">⌕</span>
@@ -109,7 +109,7 @@
       <div class="tdiv"></div>
       <div class="nav-links">
         <a id="sn-cases" onclick="goSub('cases')">판례 검색</a>
-        <a id="sn-laws"  onclick="goSub('laws')">법령 데이터베이스</a>
+        <a id="sn-laws" onclick="goSub('laws')">법령 데이터베이스</a>
         <a id="sn-guide" onclick="goSub('guide')">가이드</a>
       </div>
     </div>
@@ -147,8 +147,8 @@
     <!-- 중앙 본문 -->
     <div class="panel-center" id="panelCenter" onscroll="updateProgress()">
       <div class="viewer-toolbar">
-        <button class="tbtn active" id="bDark"  onclick="setMode('dark')">◑ 다크</button>
-        <button class="tbtn"        id="bLight" onclick="setMode('light')">○ 라이트</button>
+        <button class="tbtn active" id="bDark" onclick="setMode('dark')">◑ 다크</button>
+        <button class="tbtn" id="bLight" onclick="setMode('light')">◯ 라이트</button>
         <div class="tsep"></div>
         <div class="fctl">
           <span style="font-size:12px;">가</span>
@@ -158,17 +158,16 @@
         <div class="tsep"></div>
         <button class="tbtn" onclick="applyHighlight()">◈ 하이라이트</button>
         <button class="tbtn" onclick="clearHighlights()">↺ 지우기</button>
-        <div class="tsep"></div> <button class="tbtn active" id="btnTermToggle" onclick="toggleViewLayer('terms')">
-          법률 용어: 켬</button>
-  </button>
+        <div class="tsep"></div>
+        <button class="tbtn active" id="btnTermToggle" onclick="toggleViewLayer('terms')">법률 용어: 켬</button>
       </div>
       <div id="caseBody"><div class="loading-wrap"><div class="spinner"></div><span style="margin-left:10px;color:var(--text-muted);">불러오는 중...</span></div></div>
     </div>
     <!-- 우측 패널 -->
     <div class="panel-right">
       <div class="panel-tabs">
-        <div class="ptab active" id="pt-terms"   onclick="showTab('terms')">용어 해설</div>
-        <div class="ptab"        id="pt-related" onclick="showTab('related')">연계 판례</div>
+        <div class="ptab active" id="pt-terms" onclick="showTab('terms')">용어 해설</div>
+        <div class="ptab" id="pt-related" onclick="showTab('related')">연계 판례</div>
       </div>
       <div class="pc" id="pc-terms">
         <div class="hint" id="termHint">본문의 <strong style="color:var(--accent);">밑줄된 법률 용어</strong>를 클릭하면 여기에 해설이 표시됩니다.</div>
