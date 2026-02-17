@@ -26,12 +26,12 @@
   --shadow: 0 4px 24px rgba(0,0,0,.4);
 }
 
-/* 라이트모드 - 고급스럽고 온화한 색상 */
+/* ★★★ 수정: 라이트모드 - 더 밝은 배경 ★★★ */
 [data-theme='light'] {
-  --bg: #f8f6f0;           /* 따뜻한 아이보리 */
-  --surface: #ffffff;       /* 순백 */
-  --surface2: #f0ede5;      /* 연한 베이지 */
-  --border: #d4cfc0;        /* 부드러운 베이지 테두리 */
+  --bg: #fafaf8;           /* 더 밝은 배경 */
+  --surface: #ffffff;       
+  --surface2: #f5f5f0;      /* 더 밝은 서브 배경 */
+  --border: #e0e0d8;        
   --border-bright: #b8b0a0;
   
   /* 텍스트 - 가독성 높은 어두운 색상 */
@@ -215,4 +215,27 @@ body {
 }
 .ain { 
   animation: fadeUp .35s ease forwards; 
+}
+
+/* ════════════════════════════════════════════
+   #19 다크모드 - 딥블랙/골드 테마 강화
+   ════════════════════════════════════════════ */
+:root {
+  --bg: #0a0b0f;
+  --surface: #111318;
+  --surface2: #181a22;
+  --border: #242736;
+  --border-bright: #333650;
+  --text: #e8eaf5;
+  --text-muted: #7878a0;
+  --text-dim: #424468;
+  --accent: #d4a843;
+  --accent-dim: rgba(212,168,67,.14);
+  --accent-glow: rgba(212,168,67,.06);
+  --blue: #6495ee;
+  --blue-dim: rgba(100,149,238,.15);
+  --green: #60d485;
+  --purple: #b08eec;
+  --red: #e86060;
+  --shadow: 0 4px 28px rgba(0,0,0,.55);
 }

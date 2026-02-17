@@ -29,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initializeTheme();
   await loadTermDatabase();
   displayInitialSamples();
+  setupHistory();
 });
 
 function initializeTheme() {
@@ -127,12 +128,16 @@ function showPage(pageId) {
   });
 }
 
-window.goHome = () => showPage('home');
+window.goHome = () => {
+  showPage('home');
+  history.pushState({ page: 'home' }, '', '/');
+};
 
 window.goSub = (tab) => {
   showPage('subpage');
   updateSubNavigation(tab);
   renderSubContent(tab);
+  history.pushState({ page: 'subpage', tab }, '', `/?tab=${tab}`);
 };
 
 function updateSubNavigation(activeTab) {
@@ -162,11 +167,14 @@ function renderSubContent(tab) {
 }
 
 function renderCasesContent() {
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({length: 10}, (_, i) => currentYear - i);
+
   return `
     <div class="sub-header"><h2>판례 검색</h2></div>
     <div class="sub-body">
       <div class="full-sb">
-        <input id="cSrch" placeholder="판례번호, 키워드, 당사자명..." 
+        <input id="cSrch" placeholder="사건번호(2024도1234), 키워드, 당사자명..."
                onkeydown="if(event.key==='Enter')window.doCaseSearch()">
         <select class="fsel" id="cCourt">
           <option value="">법원 전체</option>
@@ -175,7 +183,21 @@ function renderCasesContent() {
           <option value="300">고등법원</option>
           <option value="200">지방법원</option>
         </select>
+        <select class="fsel" id="cYear">
+          <option value="">연도 전체</option>
+          ${years.map(y => `<option value="${y}">${y}년</option>`).join('')}
+        </select>
         <button class="go-btn" onclick="window.doCaseSearch()">검색</button>
+      </div>
+      <!-- #4 검색 키워드 가이드 -->
+      <div class="search-guide">
+        <span class="sg-label">예시:</span>
+        <span class="sg-tag" onclick="setAndSearch('cSrch','업무상과실')">업무상과실</span>
+        <span class="sg-tag" onclick="setAndSearch('cSrch','손해배상')">손해배상</span>
+        <span class="sg-tag" onclick="setAndSearch('cSrch','명예훼손')">명예훼손</span>
+        <span class="sg-tag" onclick="setAndSearch('cSrch','횡령')">횡령</span>
+        <span class="sg-tag" onclick="setAndSearch('cSrch','저작권')">저작권</span>
+        <span class="sg-tag" onclick="setAndSearch('cSrch','이혼')">이혼</span>
       </div>
       <div id="cRes"><div class="hint-text">검색어를 입력하세요</div></div>
     </div>
@@ -183,22 +205,24 @@ function renderCasesContent() {
 }
 
 function renderLawsContent() {
-  const categories = ['형법', '민법', '헌법', '형사소송법', '상법', '근로기준법', '의료법', '저작권법'];
-  
+  const categories = ['형법','민법','헌법','형사소송법','상법','근로기준법','의료법','저작권법'];
+
   return `
     <div class="sub-header"><h2>법령 데이터베이스</h2></div>
     <div class="sub-body">
       <div class="full-sb">
-        <input id="lSrch" placeholder="법령명, 조문, 키워드..." 
+        <input id="lSrch" placeholder="법령명, 조문내용, 키워드..."
                onkeydown="if(event.key==='Enter')window.doLawSearch()">
         <button class="go-btn" onclick="window.doLawSearch()">검색</button>
       </div>
-      <div class="law-cat-grid">
-        ${categories.map(name => 
-          `<div class="lcat" onclick="window.doLawSearchByKw('${name}')">${name}</div>`
+      <!-- #4 검색 키워드 가이드 -->
+      <div class="search-guide">
+        <span class="sg-label">주요 법령:</span>
+        ${categories.map(name =>
+          `<span class="sg-tag" onclick="window.doLawSearchByKw('${name}')">${name}</span>`
         ).join('')}
       </div>
-      <div id="lRes"><div class="hint-text">법령을 검색하거나 분야를 선택하세요</div></div>
+      <div id="lRes"><div class="hint-text">법령명을 검색하거나 위 항목을 클릭하세요</div></div>
     </div>
   `;
 }
@@ -286,13 +310,17 @@ window.hTab = (type) => {
   });
 };
 
-window.setSearch = (query) => {
-  document.getElementById('hSrch').value = query;
-  doHomeSearch();
+// #4 키워드 가이드 클릭 헬퍼
+window.setAndSearch = (inputId, keyword) => {
+  const el = document.getElementById(inputId);
+  if (el) { el.value = keyword; el.dispatchEvent(new Event('input')); }
+  if (inputId === 'cSrch') window.doCaseSearch();
+  else if (inputId === 'lSrch') window.doLawSearch();
 };
 
 window.doHomeSearch = async () => {
-  const query = document.getElementById('hSrch').value.trim();
+  const queryInput = document.getElementById('hSrch');
+  const query = queryInput ? queryInput.value.trim() : '';
   const resultsBox = document.getElementById('homeResults');
   
   if (!query) {
@@ -303,36 +331,54 @@ window.doHomeSearch = async () => {
   resultsBox.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
   
   try {
-    const searchPromises = [];
-    
-    if (state.homeType !== 'law') {
-      searchPromises.push(API.searchPrecedent(query));
-    }
-    if (state.homeType !== 'case') {
-      searchPromises.push(API.searchLaw(query));
-    }
-    
-    const results = await Promise.allSettled(searchPromises);
-    
     let html = '';
-    const casesResult = state.homeType !== 'law' ? results[0] : null;
-    const lawsResult = state.homeType === 'all' ? results[1] : (state.homeType === 'law' ? results[0] : null);
-    
-    if (casesResult?.status === 'fulfilled') {
-      (casesResult.value?.items || []).slice(0, 4).forEach(caseItem => {
-        html += caseCard(caseItem, `window.goDetail('case','${caseItem.id}')`);
+    const type = state.homeType;
+    const isCaseNum = /^\d+.*?\d+$/.test(query);
+
+    // --- 데이터 가져오기 ---
+    let cItems = [];
+    let lItems = [];
+
+    // 괄호 없이 query 변수만 그대로 전달합니다.
+    if (type === 'all' || type === 'case') {
+      const cR = await API.searchPrecedent(query); 
+      cItems = cR?.items || [];
+      
+      // 사건번호 정밀 필터링 (85개 중 1개 찾기)
+      if (isCaseNum) {
+        const cleanQuery = query.replace(/\s/g, '');
+        cItems = cItems.filter(item => 
+          (item.사건번호 || '').replace(/\s/g, '') === cleanQuery
+        );
+      }
+    }
+
+    if (type === 'all' || type === 'law') {
+      const lR = await API.searchLaw(query);
+      lItems = lR?.items || [];
+    }
+
+    // --- 화면 그리기 ---
+    // 판례 카드 생성
+    if (type === 'all' || type === 'case') {
+      const limit = (type === 'all') ? 4 : 7;
+      cItems.slice(0, limit).forEach(item => {
+        html += caseCard(item, `window.goDetail('case','${item.id}')`);
       });
     }
-    
-    if (lawsResult?.status === 'fulfilled') {
-      (lawsResult.value?.items || []).slice(0, 3).forEach(lawItem => {
-        html += lawCard(lawItem, `window.goDetail('law','${lawItem.mst}')`);
+
+    // 법령 카드 생성
+    if (type === 'all' || type === 'law') {
+      const limit = (type === 'all') ? 3 : 7;
+      lItems.slice(0, limit).forEach(item => {
+        html += lawCard(item, `window.goDetail('law','${item.mst}')`);
       });
     }
-    
+
     resultsBox.innerHTML = html || '<div class="hint-text">검색 결과가 없습니다.</div>';
   } catch (error) {
-    resultsBox.innerHTML = `<div class="hint-text error">오류: ${error.message}</div>`;
+    console.error('Search Error:', error);
+    resultsBox.innerHTML = `<div class="hint-text error">오류가 발생했습니다.</div>`;
   }
 };
 
@@ -340,22 +386,30 @@ window.doHomeSearch = async () => {
 // 판례 검색 (서브 페이지)
 // ════════════════════════════════════════════════════════════════
 window.doCaseSearch = async () => {
-  const query = document.getElementById('cSrch')?.value.trim();
-  const court = document.getElementById('cCourt')?.value || '';
+  const query    = document.getElementById('cSrch')?.value.trim() || '';
+  const court    = document.getElementById('cCourt')?.value || '';
+  const sort     = document.getElementById('cSort')?.value || 'date';
+  const year     = document.getElementById('cYear')?.value || '';
   const resultsBox = document.getElementById('cRes');
-  
-  if (!query) {
-    // 검색어가 없으면 샘플 표시
-    displayCaseSamples();
-    return;
-  }
-  
+
+  if (!query) { displayCaseSamples(); return; }
+
   resultsBox.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
-  
+
   try {
-    const data = await API.searchPrecedent(query, { court, display: 30 });
-    const html = (data.items || []).map(caseItem => caseCardBig(caseItem)).join('');
-    resultsBox.innerHTML = html || '<div class="hint-text">검색 결과가 없습니다.</div>';
+    // #3: court 파라미터 정상 전달, #5: display 100으로 확장
+    const data = await API.searchPrecedent(query, { court, display: 100, sort });
+    let items = data.items || [];
+
+    // #5: 연도 필터
+    if (year) items = items.filter(i => (i.date || '').startsWith(year));
+
+    const total = items.length;
+    const html = items.map(i => caseCardBig(i)).join('');
+    const countHtml = `<div class="result-count">총 <strong>${total}</strong>건</div>`;
+    resultsBox.innerHTML = total
+      ? countHtml + html
+      : '<div class="hint-text">검색 결과가 없습니다.</div>';
   } catch (error) {
     resultsBox.innerHTML = `<div class="hint-text error">오류: ${error.message}</div>`;
   }
@@ -457,6 +511,7 @@ window.goDetail = async (type, id) => {
   state.currentDetail.id = id;
   
   showPage('detail');
+  history.pushState({ page: 'detail', type, id }, '', `/?view=${type}&id=${id}`);
   
   const bodyElement = document.getElementById('caseBody');
   bodyElement.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
@@ -478,10 +533,21 @@ function renderDetailView(type, data) {
   updateDetailHeader(type, data);
   renderLeftPanel(type, data);
   renderCenterPanel(type, data);
-  
+
   if (type === 'case') {
     loadRelatedCases(data);
     extractAndDisplayTerms(data.fullText || '');
+    // 연계판례 탭 표시
+    document.getElementById('pt-related')?.style.removeProperty('display');
+    document.getElementById('pc-related')?.style.removeProperty('display');
+  } else {
+    // #20 법률 볼 때 연계판례 숨김
+    const relTab = document.getElementById('pt-related');
+    const relPanel = document.getElementById('pc-related');
+    if (relTab)  relTab.style.display  = 'none';
+    if (relPanel) relPanel.style.display = 'none';
+    // 용어 탭 활성화
+    showTab('terms');
   }
 }
 
@@ -495,9 +561,10 @@ function updateDetailHeader(type, data) {
     chip1.textContent = data.court || '';
     chip2.textContent = data.date || '';
   } else {
-    numElement.textContent = data.name || '법령';
-    chip1.textContent = data.category || '';
-    chip2.textContent = data.date || '';
+    // ★ 법령: name에 CDATA 공백 제거, date는 enforcDate 사용
+    numElement.textContent = String(data.name || '법령').trim();
+    chip1.textContent = String(data.category || '').trim();
+    chip2.textContent = data.enforcDate || data.promulgDate || '';
   }
 }
 
@@ -517,7 +584,10 @@ function renderLeftPanel(type, data) {
 
 function renderCaseToc(data) {
   const config = getCaseTypeConfig(data.caseNum || '');
-  
+
+  // #16 판례 관계인: 본문에서 실제 이름 파싱 시도
+  const parties = extractParties(data.fullText || data.summary || '', config.labels);
+
   let html = `
     <div class="pst">정보</div>
     <div class="case-type-badge ${config.class}">${config.name}</div>
@@ -527,22 +597,23 @@ function renderCaseToc(data) {
     <div class="tdivider"></div>
     <div class="pst">관계인</div>
   `;
-  
-  config.labels.forEach(label => {
-    html += `<div class="toc-info"><span class="ml">${label}</span>정보 확인 중</div>`;
+
+  config.labels.forEach((label, i) => {
+    const name = parties[i] || '—';
+    html += `<div class="toc-info"><span class="ml">${label}</span><span title="${name}">${name.length > 12 ? name.slice(0,12)+'…' : name}</span></div>`;
   });
-  
+
   html += `
     <div class="tdivider"></div>
     <div class="pst">섹션</div>
     <div class="toc active" onclick="scrollToSectionId('case-top', this)">판례 개요</div>
   `;
-  
-  if (data.summary) html += `<div class="toc" onclick="scrollToSectionId('section-summary', this)">판시사항</div>`;
-  if (data.gist) html += `<div class="toc" onclick="scrollToSectionId('section-gist', this)">판결요지</div>`;
-  if (data.refLaws) html += `<div class="toc" onclick="scrollToSectionId('section-ref-laws', this)">참조조문</div>`;
+
+  if (data.summary)  html += `<div class="toc" onclick="scrollToSectionId('section-summary', this)">판시사항</div>`;
+  if (data.gist)     html += `<div class="toc" onclick="scrollToSectionId('section-gist', this)">판결요지</div>`;
+  if (data.refLaws)  html += `<div class="toc" onclick="scrollToSectionId('section-ref-laws', this)">참조조문</div>`;
   if (data.refCases) html += `<div class="toc" onclick="scrollToSectionId('section-ref-cases', this)">참조판례</div>`;
-  
+
   if (data.fullText) {
     const sections = data.fullText.match(/【(.*?)】/g);
     if (sections) {
@@ -552,8 +623,20 @@ function renderCaseToc(data) {
       });
     }
   }
-  
+
   return html;
+}
+
+// #16 관계인 추출: "피고인 홍길동" 패턴 파싱
+function extractParties(text, labels) {
+  if (!text) return [];
+  const result = [];
+  for (const label of labels) {
+    // "피고인 이름" 패턴: 레이블 뒤 공백 + 한글이름(2~6자)
+    const m = text.match(new RegExp(`${label}\\s+([가-힣]{2,6})`));
+    result.push(m ? m[1] : '—');
+  }
+  return result;
 }
 
 function renderLawToc(data) {
@@ -562,24 +645,33 @@ function renderLawToc(data) {
   return html;
 }
 
-function buildLawTocTree(nodes) {
+function buildLawTocTree(nodes, depth = 0) {
   if (!Array.isArray(nodes)) return '';
-  
+
   return nodes.map(node => {
-    if (['part', 'chapter', 'section', 'sub-section'].includes(node.type)) {
-      const childrenHtml = node.children ? buildLawTocTree(node.children) : '';
+    if (node.type === 'part') {
+      // #9 편: 목차에서 파란색, 중앙정렬
       return `
-        <div class="toc toc-${node.type}" style="font-weight:bold; color:#34495e; margin-top:10px;">
-          ${node.title}
-        </div>
-        ${childrenHtml}
+        <div class="pst toc-part-label">${node.title}</div>
+        ${buildLawTocTree(node.children || [], depth + 1)}
+      `;
+    } else if (node.type === 'chapter') {
+      return `
+        <div class="toc toc-chapter">${node.title}</div>
+        ${buildLawTocTree(node.children || [], depth + 1)}
+      `;
+    } else if (node.type === 'section' || node.type === 'subsection') {
+      return `
+        <div class="toc toc-section" style="padding-left:${14 + depth * 6}px">${node.title}</div>
+        ${buildLawTocTree(node.children || [], depth + 1)}
       `;
     } else if (node.type === 'article') {
       const articleId = `art-${node.num}`;
+      // #10 목차 클릭시 해당 조로 이동
       return `
-        <div class="toc toc-art" onclick="scrollToLawArt('${articleId}', this)" 
-             style="padding-left:20px; font-size:0.9em;">
-          제${node.num}조 ${node.title || ''}
+        <div class="toc toc-art" style="padding-left:${18 + depth * 6}px"
+             onclick="scrollToLawArt('${articleId}', this)">
+          제${node.num}조${node.title ? ` <span class="toc-art-title">${node.title}</span>` : ''}
         </div>
       `;
     }
@@ -666,41 +758,45 @@ function renderCaseBody(data) {
 }
 
 function renderLawBody(data) {
+  const lawName = String(data.name || '').trim();
   let html = `
     <div class="case-hd">
-      <h1 class="law-main-title">${data.name || ''}</h1>
+      <h1 class="law-main-title">${lawName}</h1>
       <div class="law-info-meta">
-        ${data.category ? `<span>${data.category}</span> · ` : ''}
-        ${data.date ? `<span>${data.date}</span>` : ''}
+        ${data.category ? `<span>${String(data.category).trim()}</span>` : ''}
+        ${data.enforcDate ? ` · <span>시행 ${data.enforcDate}</span>` : ''}
+        ${data.department ? ` · <span>${String(data.department).trim()}</span>` : ''}
       </div>
     </div>
   `;
-  
   html += renderLawStructure(data.contents || []);
   return html;
 }
 
 function renderLawStructure(nodes) {
   if (!Array.isArray(nodes)) return '';
-  
+
   return nodes.map(node => {
     if (node.type === 'part') {
-      const childrenHtml = node.children ? renderLawStructure(node.children) : '';
+      // #9 편: 중앙정렬, 크고 굵게
       return `
         <div class="law-hierarchy-header part">${node.title}</div>
-        ${childrenHtml}
+        ${renderLawStructure(node.children || [])}
       `;
     } else if (node.type === 'chapter') {
-      const childrenHtml = node.children ? renderLawStructure(node.children) : '';
       return `
         <div class="law-hierarchy-header chapter">${node.title}</div>
-        ${childrenHtml}
+        ${renderLawStructure(node.children || [])}
       `;
-    } else if (node.type === 'section' || node.type === 'sub-section') {
-      const childrenHtml = node.children ? renderLawStructure(node.children) : '';
+    } else if (node.type === 'section') {
       return `
         <div class="law-hierarchy-header section">${node.title}</div>
-        ${childrenHtml}
+        ${renderLawStructure(node.children || [])}
+      `;
+    } else if (node.type === 'subsection') {
+      return `
+        <div class="law-hierarchy-header subsection">${node.title}</div>
+        ${renderLawStructure(node.children || [])}
       `;
     } else if (node.type === 'article') {
       return renderArticle(node);
@@ -711,16 +807,22 @@ function renderLawStructure(nodes) {
 
 function renderArticle(article) {
   const articleId = `art-${article.num}`;
-  const paragraphsHtml = article.paragraphs ? renderParagraphs(article.paragraphs, articleId) : '';
-  
+  // #15 가지번호: "제2조의3" 형태 지원
+  const numDisplay = article.num.includes('의')
+    ? article.num.replace('의', '<sup style="font-size:0.7em">의</sup>')
+    : article.num;
+  const paragraphsHtml = article.paragraphs?.length
+    ? renderParagraphs(article.paragraphs, articleId)
+    : '';
+
   return `
     <div class="ls law-article" id="${articleId}">
       <div class="lt">
-        <span class="ln">제${article.num}조</span>
-        ${article.title || ''}
+        <span class="ln">제${numDisplay}조</span>
+        ${article.title ? `<span class="art-title">(${article.title})</span>` : ''}
       </div>
       <div class="lbody">
-        ${article.content ? `<div class="art-main-content">${article.content}</div>` : ''}
+        ${article.content ? `<div class="art-main-content">${highlightTermsInText(formatText(article.content))}</div>` : ''}
         ${paragraphsHtml}
       </div>
     </div>
@@ -729,14 +831,12 @@ function renderArticle(article) {
 
 function renderParagraphs(paragraphs, articleId) {
   if (!Array.isArray(paragraphs)) return '';
-  
-  return paragraphs.map((para, index) => {
-    const paraId = `${articleId}-p${index}`;
-    const itemsHtml = para.items ? renderItems(para.items) : '';
-    
+
+  return paragraphs.map((para, idx) => {
+    const itemsHtml = para.items?.length ? renderItems(para.items) : '';
     return `
-      <div class="law-paragraph" id="${paraId}">
-        <span class="art-num-point">${para.num}</span>${para.content}
+      <div class="law-paragraph" id="${articleId}-p${idx}">
+        <span class="art-num-hang">${para.num}</span>${highlightTermsInText(formatText(para.content))}
         ${itemsHtml}
       </div>
     `;
@@ -745,28 +845,26 @@ function renderParagraphs(paragraphs, articleId) {
 
 function renderItems(items) {
   if (!Array.isArray(items)) return '';
-  
-  const itemsHtml = items.map(item => {
-    const subItemsHtml = item.sub_items ? renderSubItems(item.sub_items) : '';
+
+  return `<div class="law-items">${items.map(item => {
+    const subHtml = item.subitems?.length ? renderSubitems(item.subitems) : '';
     return `
       <div class="law-item">
-        <span class="art-num-point">${item.num}.</span>${item.content}
-        ${subItemsHtml}
+        <span class="art-num-ho">${item.num}</span>${highlightTermsInText(formatText(item.content))}
+        ${subHtml}
       </div>
     `;
-  }).join('');
-  
-  return `<div style="margin-top:10px;">${itemsHtml}</div>`;
+  }).join('')}</div>`;
 }
 
-function renderSubItems(subItems) {
-  if (!Array.isArray(subItems)) return '';
-  
-  const subItemsHtml = subItems.map(sub => 
-    `<div class="law-sub-item"><span class="art-num-point">${sub.num}.</span>${sub.content}</div>`
-  ).join('');
-  
-  return `<div style="margin-left:20px;margin-top:8px;">${subItemsHtml}</div>`;
+function renderSubitems(subitems) {
+  if (!Array.isArray(subitems)) return '';
+
+  return `<div class="law-subitems">${subitems.map(s => `
+    <div class="law-subitem">
+      <span class="art-num-mok">${s.num}</span>${highlightTermsInText(formatText(s.content))}
+    </div>
+  `).join('')}</div>`;
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -777,10 +875,20 @@ function formatText(text) {
 }
 
 function highlightLawReferences(text) {
-  // 법령명 패턴: "법령명 제N조" 형식을 찾아 클릭 가능하게 만듦
-  return text.replace(/([가-힣]+법|[가-힣]+령)\s*제(\d+)조/g, (match, lawName, articleNum) => {
-    return `<span class="law-ref" onclick="openLawModal('${lawName} 제${articleNum}조')">${match}</span>`;
-  });
+  if (!text) return '';
+  // #13: "형법 제30조, 제32조" → 법령명을 앞에서 상속
+  // 먼저 "법령명 제N조(, 제M조)*" 패턴을 통째로 잡은 뒤 각 조문을 분리
+  return formatText(text).replace(
+    /([가-힣]{2,20}(?:법|령|규칙|조례))\s*(제\d+(?:조의\d+)?조(?:\s*,\s*제\d+(?:조의\d+)?조)*)/g,
+    (match, lawName, articles) => {
+      const linkedArticles = articles.replace(
+        /제(\d+(?:조의\d+)?)조/g,
+        (a, num) =>
+          `<span class="law-ref" onclick="openLawModal('${lawName} 제${num}조')" title="${lawName} 제${num}조">제${num}조</span>`
+      );
+      return `<strong class="law-name-ref">${lawName}</strong> ${linkedArticles}`;
+    }
+  );
 }
 
 function highlightTermsInText(text) {
@@ -871,34 +979,62 @@ function extractAndDisplayTerms(text) {
 async function loadRelatedCases(caseData) {
   const relatedElement = document.getElementById('relatedContent');
   if (!relatedElement) return;
-  
+
   relatedElement.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
-  
+
   try {
-    // 판례번호에서 키워드 추출하여 관련 판례 검색
-    const keyword = extractKeywordFromCaseNum(caseData.caseNum);
-    const results = await API.searchPrecedent(keyword, { display: 10 });
-    
-    if (!results.items || results.items.length === 0) {
+    const caseNum = caseData.caseNum || '';
+    // #17 상/하급심: 사건번호에서 연도+사건기호 추출해서 검색
+    const yearMatch = caseNum.match(/(\d{4})/);
+    const typeMatch = caseNum.match(/[가-힣]/g);
+    const keyword   = yearMatch && typeMatch
+      ? `${yearMatch[1]} ${typeMatch.join('')}`
+      : caseNum.replace(/\d/g, '').trim();
+
+    const results = await API.searchPrecedent(keyword || '형사', { display: 20 });
+    const items   = (results.items || []).filter(i => i.id !== state.currentDetail.id);
+
+    if (!items.length) {
       relatedElement.innerHTML = '<div class="hint">연계 판례를 찾지 못했습니다.</div>';
       return;
     }
-    
-    const html = results.items
-      .filter(item => item.id !== state.currentDetail.id) // 현재 판례 제외
-      .slice(0, 5)
-      .map(item => `
-        <div class="rcrd" onclick="window.goDetail('case', '${item.id}')">
-          <div class="rtype">${item.court || ''}</div>
-          <div class="rnum">${item.caseNum || ''}</div>
-          <div class="rdate">${item.date || ''}</div>
-        </div>
-      `).join('');
-    
+
+    // #17 상/하급심 분류
+    const courtOrder = { '대법원': 3, '고등법원': 2, '지방법원': 1, '헌법재판소': 4 };
+    const myOrder    = courtOrder[caseData.court] || 1;
+
+    const higher = items.filter(i => (courtOrder[i.court] || 1) > myOrder).slice(0, 3);
+    const lower  = items.filter(i => (courtOrder[i.court] || 1) < myOrder).slice(0, 3);
+    const same   = items.filter(i => (courtOrder[i.court] || 1) === myOrder).slice(0, 2);
+
+    let html = '';
+    if (higher.length) {
+      html += '<div class="rst">상급심</div>';
+      html += higher.map(i => relatedCard(i)).join('');
+    }
+    if (lower.length) {
+      html += '<div class="rst">하급심</div>';
+      html += lower.map(i => relatedCard(i)).join('');
+    }
+    if (same.length) {
+      html += '<div class="rst">동급 판례</div>';
+      html += same.map(i => relatedCard(i)).join('');
+    }
+
     relatedElement.innerHTML = html || '<div class="hint">연계 판례를 찾지 못했습니다.</div>';
   } catch (error) {
     relatedElement.innerHTML = `<div class="hint-text error">오류: ${error.message}</div>`;
   }
+}
+
+function relatedCard(item) {
+  return `
+    <div class="rcrd" onclick="window.goDetail('case','${item.id}')">
+      <div class="rtype">${item.court || ''}</div>
+      <div class="rnum">${item.caseNum || ''}</div>
+      <div class="rdate">${item.date || ''}</div>
+    </div>
+  `;
 }
 
 function extractKeywordFromCaseNum(caseNum) {
@@ -999,6 +1135,7 @@ window.toggleViewLayer = (layerType) => {
 // 본문 내 검색
 // ════════════════════════════════════════════════════════════════
 window.doInlineSearch = () => {
+  // ★ iSrch (HTML의 실제 ID) 사용
   const query = document.getElementById('iSrch')?.value.trim();
   const bodyElement = document.getElementById('caseBody');
   
@@ -1006,29 +1143,26 @@ window.doInlineSearch = () => {
     clearInlineSearchHighlights();
     state.inlineSearch.matches = [];
     state.inlineSearch.currentIndex = 0;
+    state.inlineSearch.lastQuery = '';
     updateSearchCounter();
     return;
   }
   
-  if (query === state.inlineSearch.lastQuery) return;
+  // ★ 같은 쿼리면 다음 매치로 이동 (재실행 허용)
+  if (query === state.inlineSearch.lastQuery) {
+    window.nextMatch();
+    return;
+  }
   
   state.inlineSearch.lastQuery = query;
   clearInlineSearchHighlights();
+  highlightInlineSearchMatches(bodyElement, query);
   
-  const textContent = bodyElement.textContent || '';
-  const regex = new RegExp(escapeRegex(query), 'gi');
-  const matches = [];
-  let match;
-  
-  while ((match = regex.exec(textContent)) !== null) {
-    matches.push(match.index);
-  }
-  
-  state.inlineSearch.matches = matches;
+  const marks = document.querySelectorAll('.sh');
+  state.inlineSearch.matches = Array.from(marks);
   state.inlineSearch.currentIndex = 0;
   
-  if (matches.length > 0) {
-    highlightInlineSearchMatches(bodyElement, query);
+  if (marks.length > 0) {
     scrollToMatch(0);
   }
   
@@ -1070,41 +1204,31 @@ function clearInlineSearchHighlights() {
 function scrollToMatch(index) {
   const marks = document.querySelectorAll('.sh');
   if (index < 0 || index >= marks.length) return;
-  
-  // 이전 활성화 제거
-  marks.forEach(mark => mark.classList.remove('cur'));
-  
-  // 현재 항목 활성화 및 스크롤
-  const currentMark = marks[index];
-  currentMark.classList.add('cur');
-  currentMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  marks.forEach(m => m.classList.remove('cur'));
+  marks[index].classList.add('cur');
+  marks[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 function updateSearchCounter() {
   const counterElement = document.getElementById('iCnt');
   if (!counterElement) return;
-  
-  const total = state.inlineSearch.matches.length;
+  const total = document.querySelectorAll('.sh').length;
   const current = total > 0 ? state.inlineSearch.currentIndex + 1 : 0;
-  
   counterElement.textContent = total > 0 ? `${current}/${total}` : '';
 }
 
 window.nextMatch = () => {
-  if (state.inlineSearch.matches.length === 0) return;
-  
-  state.inlineSearch.currentIndex = 
-    (state.inlineSearch.currentIndex + 1) % state.inlineSearch.matches.length;
+  const marks = document.querySelectorAll('.sh');
+  if (marks.length === 0) return;
+  state.inlineSearch.currentIndex = (state.inlineSearch.currentIndex + 1) % marks.length;
   scrollToMatch(state.inlineSearch.currentIndex);
   updateSearchCounter();
 };
 
 window.prevMatch = () => {
-  if (state.inlineSearch.matches.length === 0) return;
-  
-  state.inlineSearch.currentIndex = 
-    (state.inlineSearch.currentIndex - 1 + state.inlineSearch.matches.length) % 
-    state.inlineSearch.matches.length;
+  const marks = document.querySelectorAll('.sh');
+  if (marks.length === 0) return;
+  state.inlineSearch.currentIndex = (state.inlineSearch.currentIndex - 1 + marks.length) % marks.length;
   scrollToMatch(state.inlineSearch.currentIndex);
   updateSearchCounter();
 };
@@ -1316,12 +1440,21 @@ window.openLawModal = async (lawReference) => {
     
     bodyElement.innerHTML = articleHtml;
     
-    // 전체 법령으로 이동 버튼
+    // 전체 법령으로 이동 버튼 + #14 해당 조로 이동
     const finalMst = articleData.mst || lawMst;
+    const finalNum = articleData.num;
     goButton.onclick = () => {
       modal.classList.remove('show');
       if (finalMst) {
-        window.goDetail('law', finalMst);
+        window.goDetail('law', finalMst).then(() => {
+          // #14 이동 후 해당 조문으로 스크롤
+          if (finalNum) {
+            setTimeout(() => {
+              const target = document.getElementById(`art-${finalNum}`);
+              if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 600);
+          }
+        });
       }
     };
   } catch (error) {
@@ -1445,3 +1578,31 @@ window.deleteTerm = async (word) => {
     alert(`오류: ${error.message}`);
   }
 };
+
+// ════════════════════════════════════════════════════════════════
+// 브라우저 히스토리 관리 (뒤로가기/앞으로가기)
+// ════════════════════════════════════════════════════════════════
+function setupHistory() {
+  history.replaceState({ page: 'home' }, '', '/');
+
+  window.addEventListener('popstate', (e) => {
+    const s = e.state;
+    if (!s) { showPage('home'); return; }
+
+    if (s.page === 'home') {
+      showPage('home');
+    } else if (s.page === 'subpage') {
+      showPage('subpage');
+      updateSubNavigation(s.tab);
+      renderSubContent(s.tab);
+    } else if (s.page === 'detail') {
+      state.currentDetail.type = s.type;
+      state.currentDetail.id   = s.id;
+      showPage('detail');
+      const bodyEl = document.getElementById('caseBody');
+      if (bodyEl) bodyEl.innerHTML = '<div class="loading-wrap"><div class="spinner"></div></div>';
+      const fn = s.type === 'case' ? API.getPrecedentDetail : API.getLawDetail;
+      fn(s.id).then(data => { if (data) renderDetailView(s.type, data); });
+    }
+  });
+}

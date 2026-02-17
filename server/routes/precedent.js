@@ -10,46 +10,55 @@ const lawApi = require('../lawApi');
 router.get('/search', async (req, res) => {
   try {
     const { query = '', court = '', page = 1, display = 20 } = req.query;
-    
-    const apiData = await lawApi.searchPrecedent({ 
-      query, 
-      page: parseInt(page), 
+
+    // #22 판례번호 형식 인식: "2024도1234", "대법원 2024. 1. 1. 선고 2023도123"
+    // 패턴: 연도(4자리) + 사건기호(도/나/다/라/마/바/사/카/파/하/구/누/노/고/초/재/헌) + 숫자
+    const caseNumPattern = /^(\d{4})\s*([가-힣]+)\s*(\d+)$/;
+    const isDirectCaseNum = caseNumPattern.test(query.trim());
+
+    const apiData = await lawApi.searchPrecedent({
+      query: query.trim(),
+      page: parseInt(page),
       display: parseInt(display),
-      court 
+      court
     });
-    
+
     const root = apiData?.PrecSearch;
-    
     if (!root || !root.prec) {
       return res.json({ total: 0, items: [] });
     }
-    
-    // API 응답을 통일된 형식으로 변환
+
     const precArray = Array.isArray(root.prec) ? root.prec : [root.prec];
     const items = precArray.map(prec => ({
-      id: prec.판례일련번호,
-      caseNum: prec.사건번호,
-      caseName: prec.사건명,
-      court: prec.법원명,
-      date: prec.선고일자,
-      result: prec.판결유형,
-      category: prec.판례분야,
-      summary: prec.판시사항 || ''
+      id:       String(prec.판례일련번호 || '').trim(),
+      caseNum:  String(prec.사건번호  || '').trim(),
+      caseName: String(prec.사건명    || '').trim(),
+      court:    String(prec.법원명    || '').trim(),
+      date:     formatDate(String(prec.선고일자 || '').trim()),
+      result:   String(prec.판결유형  || '').trim(),
+      category: String(prec.판례분야  || '').trim(),
+      summary:  String(prec.판시사항  || '').trim()
     }));
-    
+
+    // #22 판례번호 직접 입력시 완전 일치 우선 정렬
+    if (isDirectCaseNum) {
+      items.sort((a, b) => {
+        const aMatch = a.caseNum.replace(/\s/g,'').includes(query.replace(/\s/g,'')) ? 0 : 1;
+        const bMatch = b.caseNum.replace(/\s/g,'').includes(query.replace(/\s/g,'')) ? 0 : 1;
+        return aMatch - bMatch;
+      });
+    }
+
     res.json({
-      total: parseInt(root.totalCnt) || items.length,
-      page: parseInt(page),
+      total:   parseInt(root.totalCnt) || items.length,
+      page:    parseInt(page),
       display: parseInt(display),
       items
     });
-    
+
   } catch (error) {
     console.error('[판례 검색 오류]', error.message);
-    res.status(500).json({ 
-      error: '판례 검색 중 오류가 발생했습니다.',
-      message: error.message 
-    });
+    res.status(500).json({ error: '판례 검색 실패', message: error.message });
   }
 });
 
@@ -115,3 +124,8 @@ router.get('/detail/:id', async (req, res) => {
 });
 
 module.exports = router;
+
+function formatDate(str) {
+  if (!str || str.length !== 8) return str || '';
+  return `${str.slice(0,4)}.${str.slice(4,6)}.${str.slice(6,8)}`;
+}

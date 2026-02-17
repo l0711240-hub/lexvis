@@ -143,17 +143,28 @@ async function getLawArticle(mst, articleNum) {
  * @param {string} options.court - 법원 코드 (400=대법원, 500=헌재 등)
  */
 async function searchPrecedent({ query, page = 1, display = 20, court = '' }) {
+  // 사건번호 형식인지 체크 (숫자+한글+숫자 조합)
+  const isCaseNumber = /^\d+.*?\d+$/.test(query.trim());
+
   const params = {
     target: 'prec',
-    query: query || '',
     page,
-    display: Math.min(display, 100)
+    display: Math.min(display, 100) // 넉넉하게 100개까지 가져와서 필터링 대비
   };
-  
+
+  if (isCaseNumber) {
+    // 사건번호일 때는 nb 사용, query는 비움 (충돌 방지)
+    params.nb = query.trim();
+  } else {
+    // 일반 키워드일 때만 query 사용
+    params.query = query || '';
+  }
+
   if (court) {
     params.org = court;
   }
-  
+
+  // apiGet은 기존에 사용하시던 fetch 래퍼 함수를 그대로 쓴다고 가정합니다.
   return await apiGet('lawSearch.do', params);
 }
 

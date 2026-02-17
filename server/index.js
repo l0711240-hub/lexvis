@@ -72,11 +72,11 @@ app.listen(PORT, () => {
   console.log('');
   console.log('╔══════════════════════════════════════════════╗');
   console.log('║                                              ║');
-  console.log('║    ✨ LexVis 서버 실행 중                    ║');
+  console.log('║       LexVis 서버 실행 중                    ║');
   console.log('║                                              ║');
-  console.log(`║    🌐 URL: http://localhost:${PORT}           ║`);
-  console.log(`║    📡 API: http://localhost:${PORT}/api      ║`);
-  console.log('║    🔑 국가법령정보 API: 연결됨               ║');
+  console.log(`║       URL: http://localhost:${PORT}             ║`);
+  console.log(`║       API: http://localhost:${PORT}/api         ║`);
+  console.log('║       국가법령정보 API: 연결됨               ║');
   console.log('║                                              ║');
   console.log('╚══════════════════════════════════════════════╝');
   console.log('');
