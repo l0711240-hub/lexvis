@@ -1,0 +1,190 @@
+/* public/css/home.css — LexVis 4.0 */
+
+/* ── 홈 NAV ── */
+.home-nav {
+  display:flex; align-items:center; gap:32px;
+  padding:18px 48px; border-bottom:1px solid var(--border);
+  background:var(--surface); position:sticky; top:0; z-index:100;
+}
+.logo {
+  font-family:var(--font-serif); font-size:22px; font-weight:700;
+  cursor:pointer; color:var(--text); letter-spacing:-0.5px;
+}
+.logo span { color:var(--accent); }
+.nav-links { display:flex; gap:24px; flex:1; }
+.nav-links a {
+  font-size:13px; color:var(--text-muted); cursor:pointer; transition:color .2s;
+}
+.nav-links a:hover, .nav-links a.active { color:var(--accent); }
+.nav-right { display:flex; align-items:center; gap:12px; margin-left:auto; }
+
+/* ── 히어로 ── */
+.hero {
+  display:grid; grid-template-columns:1fr 1fr; gap:60px;
+  padding:80px 48px; max-width:1200px; margin:0 auto;
+  min-height:calc(100vh - 65px); align-items:center;
+}
+.hero-eyebrow {
+  font-size:11px; text-transform:uppercase; letter-spacing:.1em;
+  color:var(--accent); margin-bottom:16px;
+}
+.hero-title {
+  font-family:var(--font-serif); font-size:clamp(2rem,4vw,3.2rem);
+  font-weight:700; line-height:1.15; color:var(--text); margin-bottom:20px;
+}
+.hero-title em { font-style:italic; color:var(--accent); }
+.hero-desc { font-size:15px; color:var(--text-muted); line-height:1.8; margin-bottom:28px; }
+
+/* 검색 패널 */
+.hero-search-panel {
+  background:var(--surface); border:1px solid var(--border-hi);
+  border-radius:12px; padding:24px; box-shadow:var(--shadow);
+}
+.stype-tabs { display:flex; gap:6px; margin-bottom:12px; }
+.stype-btn {
+  padding:6px 14px; border:1px solid var(--border); border-radius:20px;
+  background:transparent; color:var(--text-muted); font-size:12px;
+  cursor:pointer; transition:all .2s;
+}
+.stype-btn.active, .stype-btn:hover {
+  border-color:var(--accent); color:var(--accent); background:var(--accent-dim);
+}
+.search-bar-wrap {
+  display:flex; align-items:center; background:var(--surface2);
+  border:1px solid var(--border); border-radius:var(--radius);
+  padding:0 12px; gap:8px; margin-bottom:12px; transition:border-color .2s;
+}
+.search-bar-wrap:focus-within { border-color:var(--accent); }
+.search-icon { color:var(--text-dim); font-size:16px; }
+.search-bar-wrap input {
+  flex:1; background:transparent; border:none; outline:none;
+  color:var(--text); font-size:14px; padding:10px 0;
+}
+.go-btn {
+  padding:6px 16px; background:var(--accent); color:#fff; border:none;
+  border-radius:4px; font-size:13px; font-weight:600; cursor:pointer; transition:opacity .2s;
+}
+.go-btn:hover { opacity:.85; }
+
+/* ── [개선] 검색 결과 카드 — 좌측 색상 선으로 판례/법령 구분 ── */
+.ri {
+  display:flex; flex-direction:column; gap:4px;
+  padding:10px 12px; border-radius:var(--radius); cursor:pointer;
+  border:1px solid var(--border); transition:all .15s; margin-bottom:4px;
+  border-left:3px solid transparent;
+}
+.ri:hover { background:var(--surface2); }
+
+/* 판례 카드: 주황/골드 좌측 선 */
+.ri-case { border-left-color:var(--accent); }
+.ri-case:hover { border-color:var(--accent); border-left-color:var(--accent); }
+
+/* 법령 카드: 파란 좌측 선 */
+.ri-law { border-left-color:var(--blue); }
+.ri-law:hover { border-color:var(--blue); border-left-color:var(--blue); }
+
+.rc { font-size:10px; font-family:var(--font-mono); color:var(--accent); text-transform:uppercase; }
+.rc-law { color:var(--blue); }
+.rt { font-size:13px; font-weight:600; color:var(--text); }
+.rtags { display:flex; gap:6px; flex-wrap:wrap; }
+.ts { font-size:11px; color:var(--text-muted); font-family:var(--font-mono); }
+.tlaw { color:var(--blue); }
+
+/* ── 기능 소개 ── */
+.features { padding:60px 48px; max-width:1200px; margin:0 auto; }
+.slabel { font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--text-muted); margin-bottom:20px; }
+.feature-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+.feature-card {
+  padding:24px; background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; transition:border-color .2s, transform .2s;
+}
+.feature-card:hover { border-color:var(--accent); transform:translateY(-2px); }
+.ficon { font-size:24px; margin-bottom:12px; }
+.ftitle { font-size:14px; font-weight:600; margin-bottom:6px; }
+.fdesc { font-size:13px; color:var(--text-muted); line-height:1.6; }
+
+/* ── 서브 NAV ── */
+.sub-nav {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 32px; background:var(--surface); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:100;
+}
+.tbl { display:flex; align-items:center; gap:16px; }
+.tlogo {
+  font-family:var(--font-serif); font-size:18px; font-weight:700;
+  cursor:pointer; color:var(--accent);
+}
+.tdiv { width:1px; height:18px; background:var(--border); }
+
+/* ── 서브 페이지 본문 ── */
+.sub-header { padding:28px 32px 0; }
+.sub-header h2 { font-family:var(--font-serif); font-size:20px; font-weight:700; }
+.sub-body { padding:20px 32px 40px; }
+
+.search-area { margin-bottom:20px; }
+.full-sb {
+  display:flex; align-items:center; background:var(--surface);
+  border:1px solid var(--border-hi); border-radius:var(--radius);
+  padding:0 12px; gap:8px; margin-bottom:8px; transition:border-color .2s;
+}
+.full-sb:focus-within { border-color:var(--accent); }
+.full-sb input {
+  flex:1; background:transparent; border:none; outline:none;
+  color:var(--text); font-size:14px; padding:11px 0;
+}
+.filter-row { display:flex; gap:8px; flex-wrap:wrap; }
+.fsel {
+  padding:7px 10px; background:var(--surface2); border:1px solid var(--border);
+  border-radius:var(--radius); color:var(--text); font-size:12px;
+  cursor:pointer; outline:none; transition:border-color .2s;
+}
+.fsel:focus { border-color:var(--accent); }
+
+.law-cat-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(100px,1fr));
+  gap:8px; margin-bottom:16px;
+}
+.lcat {
+  padding:8px 12px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); font-size:13px; text-align:center;
+  cursor:pointer; transition:all .15s;
+}
+.lcat:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-dim); }
+
+/* ── [개선] 큰 결과 카드 — 좌측 색상 선 구분 ── */
+.bri {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  padding:14px 18px; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); margin-bottom:8px; cursor:pointer;
+  transition:border-color .15s, transform .15s;
+  border-left:3px solid transparent;
+}
+.bri:hover { transform:translateX(2px); }
+
+.bri-case { border-left-color:var(--accent); }
+.bri-case:hover { border-color:var(--accent); }
+
+.bri-law { border-left-color:var(--blue); }
+.bri-law:hover { border-color:var(--blue); }
+
+.bri-court { font-size:11px; color:var(--text-muted); font-family:var(--font-mono); margin-bottom:4px; }
+.bri-title { font-size:14px; font-weight:600; }
+.bri-sub { font-size:12px; color:var(--text-muted); margin-top:3px; }
+.badge { font-size:10px; font-family:var(--font-mono); padding:3px 8px; border-radius:10px; white-space:nowrap; }
+.badge-c { background:var(--accent-dim); color:var(--accent); border:1px solid var(--accent); }
+.badge-l { background:var(--blue-dim); color:var(--blue); border:1px solid var(--blue); }
+
+/* ── 가이드 ── */
+.guide-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:20px; }
+.gcard {
+  padding:20px; background:var(--surface); border:1px solid var(--border); border-radius:10px;
+}
+.gcard h3 { font-size:14px; font-weight:700; margin-bottom:12px; color:var(--accent); }
+.gcard p { font-size:13px; color:var(--text-muted); line-height:1.7; }
+.gstep { display:flex; gap:10px; align-items:flex-start; margin-bottom:10px; }
+.snum {
+  min-width:20px; height:20px; background:var(--accent-dim); color:var(--accent);
+  border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:700;
+}
+.gstep p { font-size:13px; color:var(--text-muted); line-height:1.6; }
