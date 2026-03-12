@@ -99,15 +99,25 @@ function renderSubContent(tab) {
   if (!el) return;
   const map = { cases: caseSearchPage, laws: lawSearchPage, guide: guidePage };
   el.innerHTML = (map[tab] ?? (() => ''))();
+  if (tab === 'cases') {
+    showCaseSamples();
+    const container = $id('subContent');
+    container.addEventListener('scroll', () => {
+      if (!S.caseHasMore || S.caseLoading) return;
+      if (container.scrollTop + container.clientHeight >= container.scrollHeight - 300) {
+        window.doCaseSearch(true);
+      }
+    });
+  }
   if (tab === 'laws') {
     showLawSamples();
     const container = $id('subContent');
-    container.onscroll = () => {
+    container.addEventListener('scroll', () => {
       if (!S.lawHasMore || S.lawLoading) return;
-      if (container.scrollTop + container.clientHeight >= container.scrollHeight - 200) {
+      if (container.scrollTop + container.clientHeight >= container.scrollHeight - 300) {
         runLawSearch(null, false, true);
       }
-    };
+    });
   }
 }
 
