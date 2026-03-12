@@ -20,7 +20,7 @@ router.get('/search', async (req, res) => {
     const isCaseNum = CASE_NUM_RE.test(q.replace(/\s/g, ''));
 
     const data = await lawApi.searchPrecedent({
-      query:    isCaseNum ? '' : q,
+      query:    isCaseNum ? q : q,   // 사건번호여도 query에 같이 전달
       page:     +page,
       display:  +display,
       search:   +search,
