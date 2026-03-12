@@ -99,18 +99,16 @@ function renderSubContent(tab) {
   if (!el) return;
   const map = { cases: caseSearchPage, laws: lawSearchPage, guide: guidePage };
   el.innerHTML = (map[tab] ?? (() => ''))();
-  if (tab === 'cases') {
-    showCaseSamples();
-    // 무한 스크롤 리스너
+  if (tab === 'laws') {
+    showLawSamples();
     const container = $id('subContent');
     container.onscroll = () => {
-      if (!S.caseHasMore || S.caseLoading) return;
+      if (!S.lawHasMore || S.lawLoading) return;
       if (container.scrollTop + container.clientHeight >= container.scrollHeight - 200) {
-        window.doCaseSearch(true);
+        runLawSearch(null, false, true);
       }
     };
   }
-  if (tab === 'laws')  showLawSamples();
 }
 
 function caseSearchPage() {
@@ -585,7 +583,7 @@ function renderCaseBody(data) {
     // [개선] 판례 본문 전체에서 법령 참조 다이렉팅
     body = fmtText(body);
     // [개선] 판례 본문에서 판례 참조 다이렉팅
-    body = highlightCaseRefs(body, knownCaseNums);
+    body = highlightKnownCaseRefs(body, knownCaseNums);
     h += `<div class="ls"><div class="lbody">${highlightTerms(body)}</div></div>`;
   }
   return h;
