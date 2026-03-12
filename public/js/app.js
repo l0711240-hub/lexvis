@@ -684,12 +684,18 @@ function highlightAllLawRefs(html) {
  */
 function highlightInternalRefs(html) {
   if (!S.currentLawMst) return html;
-  // "제N조(의M)?" 형태 감지 (단, 앞에 법령명이 없는 경우만)
+  // 쉼표로 연결된 "제N조(의M)?(제N항)?" 패턴 전부 감지
   return html.replace(
-    /(?<![가-힣])(제(\d+)조(?:의(\d+))?)/g,
-    (match, full, num, branch) => {
-      const targetId = branch ? `art-${num}-${branch}` : `art-${num}`;
-      return `<span class="internal-ref" onclick="window.scrollToArt('${targetId}')" title="${full} 이동">${full}</span>`;
+    /(?<![가-힣])(제(\d+)조(?:의(\d+))?(?:\s*제\d+항)?(?:\s*,\s*제(\d+)조(?:의(\d+))?(?:\s*제\d+항)?)*)/g,
+    (match) => {
+      // 매치된 문자열 안에서 각 "제N조(의M)?" 를 개별 링크로
+      return match.replace(
+        /제(\d+)조(?:의(\d+))?/g,
+        (m, num, branch) => {
+          const targetId = branch ? `art-${num}-${branch}` : `art-${num}`;
+          return `<span class="internal-ref" onclick="window.scrollToArt('${targetId}')" title="${m} 이동">${m}</span>`;
+        }
+      );
     }
   );
 }
@@ -709,20 +715,20 @@ function highlightCaseRefs(html) {
 // ════════════════════════════════════════════════════════════════
 // 용어 기능 — [FIX] 아 문제: 더 정확한 매칭
 // ════════════════════════════════════════════════════════════════
+// 변경 후 — 각 용어 첫 등장만 표시
 function highlightTerms(html) {
   if (!Object.keys(S.termDB).length) return html;
   const hiddenClass = S.viewTerms ? '' : ' term-hidden';
-
-  // 긴 용어부터 매칭 (긴 것 우선)
   const terms = Object.keys(S.termDB).sort((a, b) => b.length - a.length);
+  const used = new Set();
 
   for (const t of terms) {
-    // 변경 후 — 한글 lookbehind/lookahead 제거, HTML 태그 내부만 보호
     const re = new RegExp(`(${reEsc(t)})(?![^<]*>)`, 'g');
     html = html.replace(re, (m, p1, offset, str) => {
-      // 매칭 위치 앞쪽에 닫히지 않은 <span class="term 이 있으면 스킵
       const before = str.slice(Math.max(0, offset - 100), offset);
       if (/class="term[^"]*"[^>]*>[^<]*$/.test(before)) return m;
+      if (used.has(t)) return m;  // 이미 한 번 표시했으면 스킵
+      used.add(t);
       return `<span class="term${hiddenClass}" data-term="${esc(p1)}">${p1}</span>`;
     });
   }
