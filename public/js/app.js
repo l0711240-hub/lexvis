@@ -664,16 +664,23 @@ function renderArticle(a) {
  *     "형사소송법 제298조,제368조"
  */
 function highlightAllLawRefs(html) {
-  // 1) 법령명 + 제N조(의M)? (+ ,제N조(의M)?)*
+  // 1) 법령명 + 이후 연속되는 모든 "제N조..." 묶음을 하나로 잡기
   html = html.replace(
-    /([가-힣]+(?:\s+[가-힣]+)*(?:법|령|법률|규칙))\s*(제\d+조(?:의\d+)?(?:\s*,\s*제\d+조(?:의\d+)?)*)/g,
-    (match, lawName, articles) => {
-      // 각 조문을 개별 링크로 분리
-      const parts = articles.split(/\s*,\s*/);
-      const linked = parts.map(art =>
-        `<span class="law-ref" onclick="window.openLawModal('${lawName} ${art}')">${art}</span>`
-      ).join(',');
-      return `${lawName} ${linked}`;
+    /([가-힣]+(?:\s+[가-힣]+)*(?:법|령|법률|규칙))\s*((?:제\d+조(?:의\d+)?(?:\s*제\d+항)?(?:\s*제\d+호)?(?:\s*제\d+목)?(?:\s*,\s*)?)+)/g,
+    (match, lawName, articlesRaw) => {
+      // 2) 각 "제N조..." 단위를 개별 링크로 분리
+      const parts = articlesRaw.match(/제\d+조(?:의\d+)?(?:\s*제\d+항)?(?:\s*제\d+호)?(?:\s*제\d+목)?/g);
+      if (!parts) return match;
+      
+      // 3) 각 조문을 링크로 변환
+      let result = articlesRaw;
+      for (const art of parts) {
+        const ref = `${lawName} ${art.match(/제\d+조(?:의\d+)?/)[0]}`;
+        result = result.replace(art,
+          `<span class="law-ref" onclick="window.openLawModal('${ref}')">${art}</span>`
+        );
+      }
+      return `${lawName} ${result}`;
     }
   );
   return html;
