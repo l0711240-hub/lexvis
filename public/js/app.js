@@ -1135,13 +1135,19 @@ function setupTocTracking(type) {
       const scrollTop = center.scrollTop;
       const offset = 100; // 상단 여백
 
-      // 현재 보이는 섹션 찾기 (아래에서 위로 탐색)
+// 변경 후 — 맨 아래 도달 시 마지막 섹션 활성화
       let current = sections[0];
-      for (const s of sections) {
-        if (s.target.offsetTop - offset <= scrollTop) {
-          current = s;
-        } else {
-          break;
+
+      // 스크롤이 맨 아래에 도달했으면 마지막 섹션
+      if (center.scrollTop + center.clientHeight >= center.scrollHeight - 30) {
+        current = sections[sections.length - 1];
+      } else {
+        for (const s of sections) {
+          if (s.target.offsetTop - offset <= scrollTop) {
+            current = s;
+          } else {
+            break;
+          }
         }
       }
 
