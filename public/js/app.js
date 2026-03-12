@@ -800,16 +800,16 @@ async function loadRelated(data) {
 // ════════════════════════════════════════════════════════════════
 window.searchAndGoCase = async (caseNum) => {
   try {
-    const r = await API.searchPrecedent(caseNum, { display: 3 });
-    const item = (r.items || [])[0];
+    const r = await API.searchPrecedent(caseNum, { display: 10 });
+    const items = r.items || [];
+    // 사건번호가 정확히 포함된 결과 우선
+    const exact = items.find(i => i.caseNum && i.caseNum.includes(caseNum));
+    const item = exact || null;
     if (item && item.id) {
       window.goDetail('case', item.id);
-    } else {
-      alert(`판례 '${caseNum}'을(를) 찾지 못했습니다.`);
     }
-  } catch (e) {
-    alert('판례 검색 오류: ' + e.message);
-  }
+    // 못 찾으면 아무 동작 안 함 (잘못된 판례로 이동 방지)
+  } catch { /* 조용히 실패 */ }
 };
 
 // ════════════════════════════════════════════════════════════════
