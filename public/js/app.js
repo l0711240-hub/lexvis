@@ -471,6 +471,7 @@ function renderDetail(type, data) {
 
   attachTermClicks();
   attachLawRefClicks();
+  setupTocTracking(type);
 
   const fullText = type === 'case'
     ? [data.summary, data.gist, data.refLaws, data.refCases, data.fullText].join(' ')
@@ -1105,7 +1106,57 @@ window.scrollTo2 = (id, el) => {
   document.querySelectorAll('.toc').forEach(t => t.classList.remove('active'));
   el?.classList.add('active');
 };
+//
+// 목차 시점별 이동
+//
+function setupTocTracking(type) {
+  const center = $id('panelCenter');
+  if (!center) return;
 
+  // 목차에서 추적할 섹션 ID 수집
+  const tocItems = [...document.querySelectorAll('.toc[onclick]')];
+  if (!tocItems.length) return;
+
+  // 각 목차 항목에서 대상 ID 추출
+  const sections = tocItems.map(toc => {
+    const match = toc.getAttribute('onclick')?.match(/scrollTo2\('([^']+)'/);
+    if (!match) return null;
+    const target = $id(match[1]);
+    return target ? { toc, target } : null;
+  }).filter(Boolean);
+
+  if (!sections.length) return;
+
+  let ticking = false;
+  center.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      const scrollTop = center.scrollTop;
+      const offset = 100; // 상단 여백
+
+      // 현재 보이는 섹션 찾기 (아래에서 위로 탐색)
+      let current = sections[0];
+      for (const s of sections) {
+        if (s.target.offsetTop - offset <= scrollTop) {
+          current = s;
+        } else {
+          break;
+        }
+      }
+
+      // 이전 활성 제거 후 현재 활성
+      tocItems.forEach(t => t.classList.remove('active'));
+      if (current) {
+        current.toc.classList.add('active');
+        // 목차 패널에서 해당 항목이 보이도록 스크롤
+        current.toc.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+
+      ticking = false;
+    });
+  });
+}
 // ════════════════════════════════════════════════════════════════
 // 탭 전환 (우측 패널)
 // ════════════════════════════════════════════════════════════════
@@ -1197,17 +1248,19 @@ function caseTypeConfig(num) {
 //
 /** 참조판례 텍스트에서 사건번호 추출 */
 function extractCaseNums(text) {
-  const matches = text.match(/\d{4}[가-힣]{1,3}\d+/g);
+  const matches = text.match(/\d{2,4}[가-힣]{1,3}\d+/g);
   return [...new Set(matches || [])];
 }
 
 /** 알려진 사건번호만 링크로 변환 */
 function highlightKnownCaseRefs(html, knownNums) {
   if (!knownNums.length) return html;
-  for (const num of knownNums) {
-    const re = new RegExp(reEsc(num), 'g');
+  // 긴 번호부터 매칭 (93다26175가 93다2보다 먼저)
+  const sorted = [...knownNums].sort((a, b) => b.length - a.length);
+  for (const num of sorted) {
+    const re = new RegExp(`(?<!\\d)(${reEsc(num)})(?![^<]*>)`, 'g');
     html = html.replace(re,
-      `<span class="case-ref" onclick="window.searchAndGoCase('${num}')" title="판례: ${num}">${num}</span>`
+      `<span class="case-ref" onclick="window.searchAndGoCase('${num}')" title="판례: ${num}">$1</span>`
     );
   }
   return html;
