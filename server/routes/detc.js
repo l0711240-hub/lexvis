@@ -33,7 +33,7 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// GET /api/detc/detail/:id
+// GET /api/detc/detail/:id;
 router.get('/detail/:id', async (req, res) => {
   try {
     const { id } = req.params;
