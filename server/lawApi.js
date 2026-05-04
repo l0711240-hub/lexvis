@@ -105,12 +105,12 @@ function clearCache()    { cache.flushAll(); }
 /** 헌재결정례 목록 검색 */
 async function searchDetc({ query='', page=1, display=20, sort='ddes' } = {}) {
   const p = { target:'detc', query, page, display: Math.min(display,100), sort };
-  return apiGet('lawSearch.do', p, 'XML');
+  return apiGet('lawSearch.do', p, 'JSON');
 }
 
 /** 헌재결정례 상세 조회 */
 async function getDetcDetail(id) {
-  return apiGet('lawService.do', { target: 'detc', ID: id }, 'XML');
+  return apiGet('lawService.do', { target: 'detc', ID: id }, 'JSON');
 }
 
 module.exports = {
