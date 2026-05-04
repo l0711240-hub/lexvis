@@ -14,9 +14,9 @@ router.get('/search', async (req, res) => {
     // ★ 디버그 로그
     console.log('[헌재 응답]', JSON.stringify(data).slice(0, 500));
     const root = data?.DetcSearch ?? data;
-    if (!root?.detc) return res.json({ total: 0, page: +page, items: [] });
+    if (!root?.Detc) return res.json({ total: 0, page: +page, items: [] });
 
-    const arr = Array.isArray(root.detc) ? root.detc : [root.detc];
+    const arr = Array.isArray(root.Detc) ? root.Detc : [root.Detc];
     res.json({
       total: +root.totalCnt || arr.length,
       page: +page,
