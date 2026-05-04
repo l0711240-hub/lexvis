@@ -655,9 +655,15 @@ function renderCaseBody(data) {
 
   if (data.fullText) {
     let idx = 0;
-    let body = data.fullText.replace(/【(.*?)】/g, (m) =>
+    let ft = data.fullText;
+    // 헌재 본문 정리: 탭을 공백으로, 연속 공백 정리
+    ft = ft.replace(/\t+/g, ' ').replace(/ {2,}/g, ' ');
+    // 【...】 앞에 줄바꿈 삽입 (섹션 구분 명확하게)
+    ft = ft.replace(/【/g, '\n【');
+    let body = ft.replace(/【(.*?)】/g, (m) =>
       `<span id="sec-ft-${idx++}" class="ft-section-anchor">${m}</span>`
     );
+
     body = fmtText(body);
     body = highlightKnownCaseRefs(body, knownCaseNums);
     h += `<div class="ls"><div class="lbody">${highlightTerms(body)}</div></div>`;
