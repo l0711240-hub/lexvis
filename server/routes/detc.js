@@ -18,16 +18,17 @@ router.get('/search', async (req, res) => {
 
     const arr = Array.isArray(root.Detc) ? root.Detc : [root.Detc];
     res.json({
-      total: +root.totalCnt || arr.length,
-      page: +page,
-      items: arr.map(d => ({
-        id:       safe(d.헌재결정례일련번호),
-        caseNum:  safe(d.사건번호),
-        caseName: safe(d.사건명),
-        date:     safe(d.종국일자),
-        court:    '헌법재판소',
-        type:     'detc'
-      }))
+      id,
+      caseNum:   safe(root.사건번호),
+      caseName:  safe(root.사건명 || root.사건번호),
+      court:     '헌법재판소',
+      date:      safe(root.종국일자),
+      type:      'detc',
+      summary:   clean(root.판시사항),
+      gist:      clean(root.결정요지),
+      refLaws:   clean(root.심판대상조문 || '') + '\n' + clean(root.참조조문 || ''),
+      refCases:  clean(root.참조판례),
+      fullText:  clean(root.전문 || root.헌재결정례내용)
     });
   } catch (err) {
     console.error('[헌재 검색]', err.message);
