@@ -285,17 +285,23 @@ window.doCaseSearch = async (append = false) => {
 
   S.caseLoading = true;
   try {
-    const r = await API.searchPrecedent(S.caseQuery || '', {
-      display: 20,
-      page: S.casePage,
-      search: S.caseSearchType || 1,
-      courtOrg: S.caseCourtOrg || '',
-      courtNm: S.caseCourtNm || '',
-      sort: S.caseSort || 'ddes'
-    });
-    const rItems = (r.items || []).filter(i => i.datSrcNm !== '국세법령정보시스템' && i.caseNum);
+    const [r, d] = await Promise.all([
+      API.searchPrecedent(S.caseQuery || '', {
+        display: 15,
+        page: S.casePage,
+        search: S.caseSearchType || 1,
+        courtOrg: S.caseCourtOrg || '',
+        courtNm: S.caseCourtNm || '',
+        sort: S.caseSort || 'ddes'
+      }),
+      API.searchDetc(S.caseQuery || '', { display: 5, page: S.casePage, sort: S.caseSort || 'ddes' })
+        .catch(() => ({ items: [] }))
+    ]);
+    const rItems = [
+      ...(r.items || []).filter(i => i.datSrcNm !== '국세법령정보시스템' && i.caseNum),
+      ...(d.items || []).filter(i => i.caseNum)
+    ];
     if (rItems.length < 20) S.caseHasMore = false;
-
     const html = rItems.map(caseCardBig).join('');
     if (append) {
       box.querySelector('.scroll-loader')?.remove();
