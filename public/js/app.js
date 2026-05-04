@@ -381,8 +381,14 @@ async function showCaseSamples() {
   S.caseSearchType = 1; S.caseSort = 'ddes';
   box.innerHTML = loading();
   try {
-    const r = await API.searchPrecedent('판결', { display: 20, page: 1, sort: 'ddes' });
-    const sItems = (r.items || []).filter(i => i.datSrcNm !== '국세법령정보시스템' && i.caseNum);
+    const [r, d] = await Promise.all([
+      API.searchPrecedent('판결', { display: 15, page: 1, sort: 'ddes' }),
+      API.searchDetc('헌법', { display: 5, page: 1, sort: 'ddes' }).catch(() => ({ items: [] }))
+    ]);
+    const sItems = [
+      ...(r.items || []).filter(i => i.datSrcNm !== '국세법령정보시스템' && i.caseNum),
+      ...(d.items || []).filter(i => i.caseNum)
+    ];
     box.innerHTML = sItems.map(caseCardBig).join('') || empty();
     if (sItems.length >= 20) {
       box.insertAdjacentHTML('beforeend', '<div class="scroll-loader"><div class="spinner"></div></div>');
