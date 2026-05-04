@@ -11,6 +11,8 @@ router.get('/search', async (req, res) => {
     const { query='', page=1, display=20, sort='ddes' } = req.query;
     const data = await lawApi.searchDetc({ query, page: +page, display: +display, sort });
 
+    // ★ 디버그 로그
+    console.log('[헌재 응답]', JSON.stringify(data).slice(0, 500));
     const root = data?.DetcSearch ?? data;
     if (!root?.detc) return res.json({ total: 0, page: +page, items: [] });
 
