@@ -13,7 +13,7 @@ router.get('/search', async (req, res) => {
 
     // ★ 디버그 로그
     console.log('[헌재 응답]', JSON.stringify(data).slice(0, 500));
-    const root = data?.DetcSearch ?? data;
+    const root = data?.헌재결정례본문 ?? data?.DetcService ?? data;
     if (!root?.Detc) return res.json({ total: 0, page: +page, items: [] });
 
     const arr = Array.isArray(root.Detc) ? root.Detc : [root.Detc];
@@ -42,6 +42,7 @@ router.get('/detail/:id', async (req, res) => {
     if (!id) return res.status(400).json({ error: 'ID 필요' });
 
     const data = await lawApi.getDetcDetail(id);
+    console.log('[헌재 상세 응답]', JSON.stringify(data).slice(0, 500));
     const root = data?.DetcService ?? data;
     if (!root) return res.status(404).json({ error: '헌재결정례 없음' });
 
